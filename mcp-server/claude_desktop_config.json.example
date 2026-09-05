@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "voice-knowledge": {
+      "command": "python",
+      "args": ["/absolute/path/to/Voice-RAG-Agent/mcp-server/server.py"],
+      "env": {
+        "BACKEND_URL": "http://localhost:8000"
+      }
+    }
+  }
+}

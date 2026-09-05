@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from .db.session import engine, init_db
 from .agent.router import router as agent_router
+from .episodes.router import router as episodes_router
 from .ingest.router import router as ingest_router
 from .search.router import router as search_router
 from .voice.router import router as voice_router
@@ -21,6 +22,7 @@ app.include_router(ingest_router)
 app.include_router(search_router)
 app.include_router(agent_router)
 app.include_router(voice_router)
+app.include_router(episodes_router)
 
 
 @app.get("/health")
