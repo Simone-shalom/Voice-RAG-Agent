@@ -9,18 +9,20 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* ── centered header ── */}
-      <header className="shrink-0 border-b border-gray-800 py-4 px-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-1">
-          <span className="text-2xl leading-none">🎙️</span>
-          <h1 className="text-xl font-bold tracking-tight text-white">
+      {/* ── header — single line, centered over the chat column ── */}
+      <header className="shrink-0 border-b border-gray-800 flex items-center">
+        {/* spacer matches sidebar width so content centers over chat */}
+        <div className="w-64 shrink-0" />
+        <div className="flex-1 flex items-center justify-center gap-3 py-3 px-4">
+          <span className="text-xl leading-none">🎙️</span>
+          <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">
             Voice Knowledge Agent
           </h1>
+          <span className="text-gray-700">·</span>
+          <p className="text-xs text-gray-400 truncate">
+            Ask questions about your audio library by text or voice
+          </p>
         </div>
-        <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
-          Ask questions about your podcast or lecture library — by text or
-          voice — and get spoken answers with timestamp citations.
-        </p>
       </header>
 
       {/* ── body: sidebar + chat ── */}
