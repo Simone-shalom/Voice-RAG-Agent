@@ -118,6 +118,26 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 
 ---
 
+## [Etap 6] MCP tools jako httpx wrappers zamiast direct DB access (2026-09-05)
+
+**Decyzja:** narzedzia MCP (`tools.py`) wywoluja backend REST API przez httpx zamiast bezposrednio laczyc sie z baza danych.
+
+**Alternatywy odrzucone:** bezposrednie importy z `backend/app` (SQLAlchemy session); osobna kopia session/models w mcp-server.
+
+**Uzasadnienie:** MCP server jest osobnym procesem — duplikowanie logiki DB byloby naruszeniem DRY i wymagaloby osobnych migracji. Wywolanie HTTP gwarantuje te same transformacje co backend (RRF, reranking, walidacja) i pozwala na niezalezne skalowanie. Jedyna wada: dodatkowe opoznienie HTTP; przy lokalnym deploymencie pomijalne (<5ms).
+
+---
+
+## [Etap 6] Osobny venv dla mcp-server z powodu konfliktu starlette (2026-09-05)
+
+**Decyzja:** `mcp-server/` ma wlasny `requirements.txt` i wymaga osobnego venv. Testy narzedzi (`test_mcp_tools.py`) uruchamiane w venv backendu (mcp package nie potrzebny do testow tools.py).
+
+**Alternatywy odrzucone:** upgrade fastapi do wersji kompatybilnej z mcp; pinning mcp do starszej wersji.
+
+**Uzasadnienie:** `mcp>=1.0` wymaga `starlette>=1.0.0` (przez `sse-starlette`); `fastapi 0.115.0` wymaga `starlette<0.39.0`. Konflikt nierozwiazalny w jednym venv bez upgrade fastapi (ktory moglby zepsuc inne zaleznosci). Rozdzielenie venvow jest naturalnym rozwiazaniem — MCP server jest niezaleznym procesem, nie biblioteka backendu.
+
+---
+
 ## [Etap 5] LLM-as-judge zamiast referencyjnych odpowiedzi w golden dataset (2026-09-05)
 
 **Decyzja:** golden dataset zawiera `expected_topics: [str]` zamiast gotowych "ground-truth" odpowiedzi; ocena (Context Relevance, Groundedness, Answer Relevance) wykonywana jest przez LLM-sedziego (Anthropic Haiku).
