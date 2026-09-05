@@ -14,7 +14,7 @@
 
 **Architektura:** FastAPI (backend, Python) + Next.js (frontend) + PostgreSQL/pgvector (hybrid search) + Whisper (STT) + ElevenLabs (TTS) + LangGraph (agent z narzędziami) + własny MCP server + eval harness (RAG triad, LLM-as-judge). Diagram pełny: patrz `Kontekst i uzasadnienie` niżej (wklejony z briefu źródłowego, nie duplikuję tu ASCII-artu).
 
-**Tech stack:** Python 3.12, FastAPI, LangGraph, SQLAlchemy/psycopg, PostgreSQL + pgvector, OpenAI Whisper (lub `faster-whisper`), ElevenLabs API, Next.js 14+ (App Router), Vercel AI SDK, Docker Compose, MCP Python SDK, pytest.
+**Tech stack:** Python 3.12, FastAPI, LangGraph, SQLAlchemy/psycopg, PostgreSQL + pgvector, OpenAI Whisper (lub `faster-whisper`), ElevenLabs API, Next.js 15 (App Router), Vercel AI SDK, Docker Compose, MCP Python SDK, pytest.
 
 ---
 
