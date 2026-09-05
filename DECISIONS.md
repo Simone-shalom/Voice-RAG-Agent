@@ -68,6 +68,26 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 
 ---
 
+## [Etap 3] LangGraph StateGraph vs. chain (2026-09-05)
+
+**Decyzja:** LangGraph `StateGraph` z `AgentState` (messages + step_count), dwoma węzłami (agent, tools) i conditional edges. `MAX_STEPS = 6` jako guard przeciwko pętli. `MemorySaver` do checkpointingu historii rozmowy per `thread_id`.
+
+**Alternatywy odrzucone:** LangChain `AgentExecutor` (deprecated); hardkodowany chain z ustaloną sekwencją kroków; ReAct pattern bez LangGraph.
+
+**Uzasadnienie:** Conditional edges w LangGraph pozwalają agentowi decydować w każdej iteracji: wywołać narzędzie czy zakończyć. To nie jest chain — ta sama architektura obsługuje 1 krok (proste pytanie) i 2+ kroki (multi-hop) bez hardkodowania ścieżki. DoD test weryfikuje to eksplicite przez porównanie `step_count`. `MAX_STEPS` zapobiega nieskończonej pętli bez konieczności śledzenia zewnętrznego stanu.
+
+---
+
+## [Etap 3] Cohere vs. Anthropic (claude-haiku) jako LLM agenta (2026-09-05)
+
+**Decyzja:** Claude claude-haiku-4-5-20251001 (przez `langchain-anthropic`) jako LLM w endpoincie `/agent/chat`. Klucz API (`ANTHROPIC_API_KEY`) sprawdzany przy każdym request, nie w lifespan.
+
+**Alternatywy odrzucone:** GPT-4o-mini (OpenAI); Cohere Command R; weryfikacja klucza przy starcie aplikacji.
+
+**Uzasadnienie:** Haiku to najszybszy model Claude z pełną obsługą tool use — kluczowe dla agentowej latencji. Weryfikacja klucza przy request (nie starcie) pozwala aplikacji działać bez `ANTHROPIC_API_KEY` w środowiskach gdzie agent nie jest używany (np. testy, dev bez kluczy). HTTP 400 z czytelnym komunikatem zamiast crashu przy starcie.
+
+---
+
 ## [Etap 2] BM25 via PostgreSQL tsvector vs. external Elasticsearch/Typesense (2026-09-05)
 
 **Decyzja:** BM25 przez natywny `tsvector`/`ts_rank` PostgreSQL jako generated stored column (`GENERATED ALWAYS AS (to_tsvector('english', text)) STORED`) z indeksem GIN.
