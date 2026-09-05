@@ -118,6 +118,26 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 
 ---
 
+## [Etap 4] ElevenLabs SDK zastapiony bezposrednim wywolaniem httpx (2026-09-05)
+
+**Decyzja:** TTS nie korzysta z oficjalnego SDK (`elevenlabs>=1`), lecz wywoluje REST API ElevenLabs bezposrednio przez `httpx.post`.
+
+**Alternatywy odrzucone:** `elevenlabs>=1` (oficjalny SDK Python); `httpx` w osobnym wrapperze biblioteki.
+
+**Uzasadnienie:** Instalacja SDK na Windows 11 konczy sie bledem `OSError: [Errno 2] No such file or directory` — SDK tworzy pliki pomocnicze o sciezkach dluzszych niz 260 znakow (limit systemu Windows bez wlaczonej opcji LongPathsEnabled). Bezposrednie wywolanie REST API jest rownowazne funkcjonalnie, eliminuje zewnetrzna zaleznosc i jest zgodne z `httpx` juz obecnym w requirements.txt od Etapu 1.
+
+---
+
+## [Etap 4] Whisper STT zwraca plain string, nie segmenty (2026-09-05)
+
+**Decyzja:** `voice/stt.py::transcribe_audio` zwraca `str` (caly tekst). Pipeline ingestowy (`ingest/transcriber.py`) zwraca liste segmentow z timestampami.
+
+**Alternatywy odrzucone:** wspolny format zwracania segmentow dla obu sciezek; zwracanie timestampow dla zapytan glosowych.
+
+**Uzasadnienie:** Zapytania glosowe nie wymagaja timestampow — uzytkownik mowi pytanie (kilka sekund), a nie caly podcast. Utrzymywanie dwoch odrebnych sygnatury jest tu wlasciwe: ingest potrzebuje granic segmentow do chunk-owania; voice/STT potrzebuje tylko tekstu do przekazania agentowi.
+
+---
+
 ## [Etap 1] Konwencja: 1 squash-commit per etap na `main` (2026-09-05)
 
 **Decyzja:** granularne commity (per-task) tworzone sa na branchu roboczym podczas developmentu i code-review; przed scaleniem z `main` caly branch jest sciskany do jednego commita z pelnym opisem zmian.
