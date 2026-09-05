@@ -10,100 +10,173 @@ Voice Knowledge Agent — portfolio project for Voice AI Engineer specialization
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy/psycopg, LangGraph, pytest
 - **DB:** PostgreSQL 16 + pgvector (hybrid search: semantic + BM25 via `tsvector`)
-- **STT/TTS:** OpenAI Whisper (or `faster-whisper`), ElevenLabs API
-- **Frontend:** Next.js 15 (App Router), Vercel AI SDK — added in Etap 4
-- **MCP:** MCP Python SDK — added in Etap 6
-- **Eval:** custom harness (`eval/`) — added in Etap 5
+- **STT/TTS:** OpenAI Whisper (API), ElevenLabs API (direct httpx, not SDK)
+- **Frontend:** Next.js 15 (App Router), Tailwind CSS
+- **MCP:** MCP Python SDK (`mcp>=1.0`) — separate venv required (starlette conflict)
+- **Eval:** custom harness (`eval/`) — LLM-as-judge via Anthropic Haiku
 
 ## Running the stack
 
 ```bash
-docker compose up                # starts postgres (port 5433) + backend (port 8000)
+docker compose up                # starts postgres (5433) + backend (8000) + frontend (3000)
 curl localhost:8000/health       # -> {"status": "ok"}
+open http://localhost:3000       # UI
 ```
 
-Backend hot-reloads via volume mount (`./backend:/app`). Postgres persists data in `pgdata` volume.
+Backend hot-reloads via volume mount (`./backend:/app`).
+
+## Running tests
+
+```bash
+cd backend
+python -m pytest tests/ -v       # 131 tests, all mocked (no real DB/API calls needed)
+```
 
 ## Git conventions
 
 - **No `Co-Authored-By: Claude Code` in commits** — omit entirely.
 - Commit format: `<type>(<scope>): <subject>` where type is `feat`, `fix`, `refactor`, `test`, `chore`, `docs`.
 - Scope is the etap or module: `etap-1`, `ingest`, `search`, `agent`, `eval`, `mcp`, `frontend`.
-- Subject in English, imperative mood, no period.
-- Example: `feat(etap-1): implement ingest pipeline with Whisper transcription and pgvector search`
-- **One squash-commit per etap on `main`** — granular task commits live on the branch during development and review; before merge, squash the entire branch into a single well-written commit summarising all changes. Use `git reset --soft $(git merge-base HEAD main)` then commit.
-- After squash, force-push the branch with `git push --force-with-lease` before merging.
-- Branch naming: `etap-N-<short-name>` (e.g. `etap-1-ingest-pipeline`).
-
-## Development workflow per etap
-
-Each etap 1-7 follows this sequence (see roadmap for full detail):
-
-1. **Brainstorm** (`superpowers:brainstorming`) — only if the etap spec leaves real design ambiguity; decision saved to `DECISIONS.md`.
-2. **Plan** (`superpowers:writing-plans`) — produces `docs/superpowers/plans/YYYY-MM-DD-etap-N-<name>.md`.
-3. **Isolate** (`superpowers:using-git-worktrees`) — branch `etap-N-<name>`.
-4. **Implement** (`superpowers:subagent-driven-development`) — fresh subagent per task, TDD (red → green → refactor), commit per task.
-5. **Review** (`code-review` skill, level `medium`; `high` for Etap 5 and 6).
-6. **Verify** (`superpowers:verification-before-completion`) — full test suite + manual smoke test matching DoD.
-7. **Merge** (`superpowers:finishing-a-development-branch`) — squash branch into 1 commit, merge to `main`, delete branch.
-8. **Document** — add entry to `DECISIONS.md` and create `docs/claude-md-fragments/etap-N.md`.
-9. **Continue** — immediately start next etap without waiting for user prompt.
-
-Gate before next etap: tests green, no blocking review findings, `DECISIONS.md` updated, smoke test confirmed.
+- **One squash-commit per etap on `main`** — granular task commits live on branch; squash before merge with `git reset --soft $(git merge-base HEAD main)`.
 
 ## Architecture
 
 ```
 backend/app/
   main.py          # FastAPI app + router mounts
-  ingest/          # upload endpoint, Whisper transcription, chunker (Etap 1)
-  search/          # semantic + BM25 + RRF fusion + reranker (Etap 2)
-  agent/           # LangGraph graph definition + tools (Etap 3)
-  voice/           # STT/TTS endpoints, streaming (Etap 4)
+  ingest/          # upload endpoint, Whisper transcription, chunker
+  search/          # semantic + BM25 + RRF fusion + reranker (Cohere)
+  agent/           # LangGraph graph + tools
+  voice/           # STT/TTS endpoints
+  episodes/        # list/get episodes and chunks
 
 eval/
-  evaluate.py      # RAG triad scorer, LLM-as-judge, report generator (Etap 5)
-  golden_dataset/  # question/expected-answer pairs (source of truth)
+  scorer.py        # RAGTriadScorer (LLM-as-judge, 3 metrics)
+  runner.py        # EvalRunner (calls backend HTTP)
+  evaluate.py      # CLI: python -m eval.evaluate
+  golden_dataset/  # 15 synthetic questions (simple/comparison/multi_hop)
 
-mcp-server/        # MCP Python SDK server exposing knowledge base tools (Etap 6)
+mcp-server/        # Standalone MCP server (separate venv)
+  tools.py         # httpx wrappers (testable in backend venv)
+  server.py        # FastMCP registration
 
-frontend/          # Next.js App Router (Etap 4)
-  app/             # pages and API route handlers
-  components/      # AudioRecorder, SourcePlayer (timestamp jump), ChatUI
+frontend/          # Next.js App Router
+  app/             # pages
+  components/      # AudioRecorder, ChatUI, SourcePlayer
 ```
 
-**Critical data shape — chunk record (Etap 1 onward):**
+## Critical data shape — chunk record (invariant across all etaps)
+
 ```
-id, episode_id, start_ts, end_ts, text, embedding (vector)
+id UUID, episode_id UUID, start_ts FLOAT, end_ts FLOAT, text TEXT, embedding VECTOR(1536)
 ```
-Chunks must align to natural speech boundaries (Whisper pauses), not character counts. `start_ts`/`end_ts` are the hard requirement for timestamp citations — do not break this invariant.
 
-**Search modes** (Etap 2): `semantic` | `bm25` | `hybrid` | `hybrid+rerank`. RRF fuses ranks, not raw scores. Reranker is Cohere Rerank or a local cross-encoder (see `DECISIONS.md` for chosen option).
+`start_ts`/`end_ts` are seconds from audio start. All timestamp citations depend on this. Never break this invariant.
 
-**LangGraph agent tools** (Etap 3): `search_transcripts`, `get_context_around_timestamp`, `compare_across_episodes`, `summarise_segment`. Agent uses conditional edges — step count varies per query. The DoD test explicitly verifies different step counts for simple vs. multi-hop questions.
+## Search modes
 
-**MCP tools** (Etap 6): `search_knowledge_base(query)`, `get_episode_summary(id)`, `find_mentions(topic)`. Return chunk + timestamp + episode — never full transcripts.
+`GET /search?q=...&mode=semantic|bm25|hybrid|hybrid+rerank&limit=N`
+
+- `semantic`: pgvector cosine similarity (`<=>` operator), `WHERE embedding IS NOT NULL`
+- `bm25`: PostgreSQL `tsvector` / `ts_rank`, GIN index on stored generated column
+- `hybrid`: RRF(semantic, bm25) — fuses **ranks**, not raw scores, k=60
+- `hybrid+rerank`: hybrid → Cohere Rerank API (requires `COHERE_API_KEY`)
+
+## LangGraph agent tools
+
+Defined in `backend/app/agent/tools.py` via `make_tools(db)` closure:
+
+| Tool | Signature | What it does |
+|------|-----------|-------------|
+| `search_transcripts` | `(query: str, limit: int=5)` | hybrid search across all chunks |
+| `get_context_around_timestamp` | `(episode_id: str, timestamp: float, window_seconds: float=30.0)` | chunks near a timestamp |
+| `compare_across_episodes` | `(query: str, episode_ids: str, limit_per_episode: int=3)` | grouped search per episode |
+| `summarise_segment` | `(text: str)` | format segment for LLM analysis |
+
+MAX_STEPS = 6 (step counter guard in graph state). MemorySaver checkpoints per `thread_id`.
+
+## MCP tools
+
+Defined in `mcp-server/tools.py` — pure httpx, no MCP dependency, testable in backend venv.
+
+| Tool | Returns |
+|------|---------|
+| `search_knowledge_base(query, limit=5)` | formatted chunk list with timestamps |
+| `get_episode_summary(episode_id)` | episode metadata + first 10 transcript chunks |
+| `find_mentions(topic, limit=10)` | chunk list where topic is mentioned |
+
+Chunks returned as `{chunk + timestamp + episode}` — never full transcripts (context window hygiene).
+
+## Eval harness
+
+```bash
+# Requires running backend + ANTHROPIC_API_KEY
+python -m eval.evaluate \
+  --base-url http://localhost:8000 \
+  --modes semantic bm25 hybrid hybrid+rerank \
+  --output docs/eval_report \
+  --limit 5    # optional quick smoke test
+```
+
+RAG triad: Context Relevance, Groundedness, Answer Relevance — each 0.0–1.0.
+LLM-as-judge: Anthropic Haiku, 1-5 integer scale, normalized to (val-1)/4.0.
+
+## Key mocking patterns for tests
+
+```python
+# OpenAI lazy clients (lru_cache)
+with patch("app.ingest.embedder._client", return_value=mock_openai):
+    ...
+
+# ElevenLabs TTS (httpx directly, no SDK)
+with patch("app.voice.tts.httpx") as mock_httpx:
+    mock_httpx.post.return_value = ...
+
+# Cohere reranker (lru_cache client)
+with patch("app.search.reranker._client", return_value=mock_cohere):
+    ...
+
+# FastAPI dependency injection (DB session)
+app.dependency_overrides[get_db] = lambda: mock_db
+```
 
 ## Environment variables
 
 Copy `.env.example` → `.env` (never commit `.env`).
 
-| Variable | Used from |
+| Variable | Required for |
 |---|---|
-| `DATABASE_URL` | Etap 1 (local: `postgresql://voicerag:voicerag@localhost:5433/voicerag`) |
-| `OPENAI_API_KEY` | Etap 1 (Whisper API) |
-| `ANTHROPIC_API_KEY` | Etap 3 (LangGraph LLM), Etap 5 (LLM-as-judge) |
-| `ELEVENLABS_API_KEY` | Etap 4 (TTS) |
-| `COHERE_API_KEY` | Etap 2 (reranking, if Cohere chosen over local cross-encoder) |
+| `DATABASE_URL` | All etaps (local: `postgresql://voicerag:voicerag@localhost:5433/voicerag`) |
+| `OPENAI_API_KEY` | Ingest (Whisper + embeddings), Voice STT |
+| `ANTHROPIC_API_KEY` | Agent (LangGraph LLM), Eval (LLM-as-judge) |
+| `ELEVENLABS_API_KEY` | Voice TTS |
+| `COHERE_API_KEY` | hybrid+rerank search mode (optional — falls back to hybrid) |
+
+## Known gotchas
+
+- **ElevenLabs SDK**: do NOT install `elevenlabs>=1` on Windows — path lengths >260 chars cause `OSError`. Use `httpx.post` directly to the REST API (already implemented).
+- **MCP venv conflict**: `mcp>=1.0` requires `starlette>=1.0.0`; `fastapi 0.115.0` requires `starlette<0.39.0`. Keep `mcp-server/` in a separate venv.
+- **LangGraph import**: `from langgraph.graph.message import add_messages` (not `langchain_core.messages`).
+- **pgvector cosine**: use `<=>` operator for cosine distance; always add `WHERE embedding IS NOT NULL` guard.
+- **RRF**: sum reciprocal **ranks** (1/(k+rank)), not raw similarity scores. Verify with test that puts a chunk in both lists — it should rank first in fused results.
+- **Whisper STT for voice queries**: returns plain `str`, not segment list. Only ingest transcriber returns segments (for timestamp chunking).
+- **Test suite**: 131 tests, all mocked. Never require a running database or real API keys for tests.
+
+## Ingest commands
+
+```bash
+# Upload local file
+curl -X POST localhost:8000/ingest/upload -F "file=@recording.mp3"
+# Returns: {"id": "<uuid>", "filename": "...", "chunk_count": N}
+
+# Ingest from URL
+curl -X POST localhost:8000/ingest/url \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/podcast.mp3"}'
+```
 
 ## Documentation conventions
 
-- **`DECISIONS.md`** — every non-trivial technical decision: what was chosen, what was rejected, why. Written at end of each etap before it's considered closed. This is interview material — write as if explaining to someone who wasn't there.
-- **`docs/claude-md-fragments/etap-N.md`** — per-etap additions destined for the final `CLAUDE.md`. Etap 7 merges all fragments into this file.
-- Plans live in `docs/superpowers/plans/YYYY-MM-DD-etap-N-<name>.md`.
-
-## Priority if time runs short
-
-Do not cut: ingest + hybrid search + LangGraph agent + eval harness + MCP server.
-Can simplify: voice layer (text input + TTS fallback without mic STT).
-Can skip: `compare_across_episodes`, polished frontend, production deploy (Docker Compose + video demo is sufficient).
+- **`DECISIONS.md`** — every non-trivial technical decision: chosen, rejected alternatives, why. Written at end of each etap.
+- **`docs/claude-md-fragments/etap-N.md`** — per-etap detail that fed into this final `CLAUDE.md`.
+- Plans: `docs/superpowers/plans/YYYY-MM-DD-etap-N-<name>.md`
