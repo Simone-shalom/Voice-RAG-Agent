@@ -118,6 +118,26 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 
 ---
 
+## [Etap 5] LLM-as-judge zamiast referencyjnych odpowiedzi w golden dataset (2026-09-05)
+
+**Decyzja:** golden dataset zawiera `expected_topics: [str]` zamiast gotowych "ground-truth" odpowiedzi; ocena (Context Relevance, Groundedness, Answer Relevance) wykonywana jest przez LLM-sedziego (Anthropic Haiku).
+
+**Alternatywy odrzucone:** manualne odpowiedzi reference i porownanie string-similarity (BLEU/ROUGE); zwykly recall na expected_topics bez LLM.
+
+**Uzasadnienie:** Nie mamy prawdziwych podcastow — generowanie referencyjnych odpowiedzi do syntetycznych pytan byloby circular. LLM-as-judge mierzy to samo co interesuje nas jako uzytkownika: czy odpowiedz jest trafna i ugruntowana w kontekscie. Haiku zamiast Sonnet/Opus: latencja i koszt; przy 15 pytan x 4 tryby x 3 metryki = 180 wywolan; Haiku wystarczy do oceny.
+
+---
+
+## [Etap 5] Skalowanie scoru 1-5 do 0-1 zamiast bezposredniego float (2026-09-05)
+
+**Decyzja:** prompt prosi LLM o liczbe calkowita 1-5; `_parse_score` normalizuje do `(val-1)/4.0`. Parsowanie wyciaga pierwszy cyfre ze stringa (zabezpieczenie na "The score is 4." etc.).
+
+**Alternatywy odrzucone:** proszenie o float bezposrednio (0.0-1.0); prompt z rubrykami i calkowitym JSON.
+
+**Uzasadnienie:** Male modele (Haiku) sa bardziej deterministyczne w generowaniu pojedynczej cyfry niz floata. Parse pierwszej cyfry ze stringa jest odporne na dodatkowy tekst ktory maly model moze dorzucic. JSON parsing nadklada i tak nie uzasadniona dodatkowa zlozonosc dla tak prostego wyjscia.
+
+---
+
 ## [Etap 4] ElevenLabs SDK zastapiony bezposrednim wywolaniem httpx (2026-09-05)
 
 **Decyzja:** TTS nie korzysta z oficjalnego SDK (`elevenlabs>=1`), lecz wywoluje REST API ElevenLabs bezposrednio przez `httpx.post`.
