@@ -1,6 +1,7 @@
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..db.session import get_db
 from .graph import build_graph
+from .streaming import stream_agent_response
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -39,3 +41,16 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         return ChatResponse(reply=last_msg.content, steps=result["step_count"])
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/chat/stream")
+async def chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
+    async def generate():
+        async for chunk in stream_agent_response(
+            message=request.message,
+            thread_id=request.thread_id,
+            db=db,
+        ):
+            yield chunk
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

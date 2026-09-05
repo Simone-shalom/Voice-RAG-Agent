@@ -15,8 +15,8 @@ interface Source {
 interface Message {
   role: "user" | "assistant";
   text: string;
-  audioUrl?: string;
   sources?: Source[];
+  streaming?: boolean;
 }
 
 interface Props {
@@ -28,51 +28,148 @@ export default function ChatUI({ selectedEpisode }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const threadId = useRef(crypto.randomUUID());
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  function getAudioCtx(): AudioContext {
+    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+      audioCtxRef.current = new AudioContext();
+    }
+    return audioCtxRef.current;
+  }
+
+  function enqueueAudioChunk(base64: string) {
+    audioQueueRef.current = audioQueueRef.current.then(async () => {
+      try {
+        const ctx = getAudioCtx();
+        if (ctx.state === "suspended") await ctx.resume();
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+        await new Promise<void>((resolve) => {
+          const src = ctx.createBufferSource();
+          src.buffer = audioBuffer;
+          src.connect(ctx.destination);
+          src.onended = () => resolve();
+          src.start();
+        });
+      } catch {
+        // audio decode/playback failure is non-fatal — text response still shows
+      }
+    });
+  }
 
   async function sendMessage(userText: string) {
     if (!userText.trim()) return;
+    if (loading) return;
     setInput("");
     setLoading(true);
-    setMessages((prev) => [...prev, { role: "user", text: userText }]);
 
-    // prefix with episode context so the agent focuses on the selected file
+    // Create/resume the AudioContext synchronously, still inside the
+    // triggering user-gesture call stack (before any await below) — browsers
+    // may refuse to un-suspend an AudioContext once we've hopped past the
+    // gesture window (e.g. after the fetch() call below resolves).
+    const gestureCtx = getAudioCtx();
+    if (gestureCtx.state === "suspended") {
+      gestureCtx.resume().catch(() => {});
+    }
+
     const messagePayload = selectedEpisode
       ? `[Focus on episode: "${selectedEpisode.filename}" (id: ${selectedEpisode.id})] ${userText}`
       : userText;
 
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: userText },
+      { role: "assistant", text: "", streaming: true },
+    ]);
+
     try {
-      const res = await fetch("/api/agent/chat", {
+      const res = await fetch("/api/agent/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: messagePayload, thread_id: threadId.current }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const reply: string = data.reply ?? "";
+      if (!res.ok || !res.body) throw new Error(await res.text());
 
-      let audioUrl: string | undefined;
-      try {
-        const ttsRes = await fetch("/api/voice/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: reply }),
-        });
-        if (ttsRes.ok) {
-          audioUrl = URL.createObjectURL(await ttsRes.blob());
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let done = false;
+
+      while (!done) {
+        const { done: readerDone, value } = await reader.read();
+        if (readerDone) break;
+        buf += decoder.decode(value, { stream: true });
+
+        const events = buf.split("\n\n");
+        buf = events.pop() ?? "";
+
+        for (const raw of events) {
+          const line = raw.startsWith("data: ") ? raw.slice(6) : raw;
+          if (!line.trim()) continue;
+
+          let event: { type: string; text?: string; data?: string };
+          try {
+            event = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (event.type === "token") {
+            setMessages((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === "assistant") {
+                next[next.length - 1] = {
+                  ...last,
+                  text: last.text + (event.text ?? ""),
+                };
+              }
+              return next;
+            });
+          } else if (event.type === "audio" && event.data) {
+            enqueueAudioChunk(event.data);
+          } else if (event.type === "error") {
+            setMessages((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === "assistant") {
+                next[next.length - 1] = {
+                  ...last,
+                  text: last.text || `Error: ${event.text}`,
+                  streaming: false,
+                };
+              }
+              return next;
+            });
+            done = true;
+          } else if (event.type === "done") {
+            done = true;
+          }
         }
-      } catch {
-        // TTS is best-effort; missing API key is acceptable in dev
       }
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", text: reply, audioUrl, sources: data.sources ?? [] },
-      ]);
+      setMessages((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === "assistant") {
+          next[next.length - 1] = { ...last, streaming: false };
+        }
+        return next;
+      });
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", text: `Error: ${err}` },
-      ]);
+      setMessages((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last?.role === "assistant") {
+          next[next.length - 1] = { ...last, text: `Error: ${err}`, streaming: false };
+        } else {
+          next.push({ role: "assistant", text: `Error: ${err}` });
+        }
+        return next;
+      });
     } finally {
       setLoading(false);
     }
@@ -120,22 +217,16 @@ export default function ChatUI({ selectedEpisode }: Props) {
                   : "bg-gray-800 text-gray-100"
               }`}
             >
-              <p className="whitespace-pre-wrap">{m.text}</p>
-              {m.audioUrl && (
-                <audio src={m.audioUrl} controls autoPlay className="mt-2 w-full" />
-              )}
+              <p className="whitespace-pre-wrap">
+                {m.text}
+                {m.streaming && (
+                  <span className="inline-block w-1.5 h-4 ml-0.5 bg-gray-400 animate-pulse align-middle" />
+                )}
+              </p>
               {m.sources && <SourcePlayer sources={m.sources} />}
             </div>
           </div>
         ))}
-
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-800 rounded-2xl px-4 py-3 text-gray-400 text-sm animate-pulse">
-              Thinking…
-            </div>
-          </div>
-        )}
       </div>
 
       {/* input bar */}
@@ -151,6 +242,7 @@ export default function ChatUI({ selectedEpisode }: Props) {
                 ? `Ask about "${selectedEpisode.filename}"…`
                 : "Type a question…"
             }
+            disabled={loading}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500"
           />
           <button

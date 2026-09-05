@@ -12,3 +12,4 @@ langchain-anthropic==1.7.1
 langchain-core==1.6.2
 pytest==8.3.3
 pytest-mock==3.14.0
+pytest-asyncio>=0.23.0

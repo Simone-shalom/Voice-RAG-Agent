@@ -185,3 +185,33 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 **Alternatywy odrzucone:** scalanie wszystkich granularnych commitow do `main`; squash-merge przez GitHub.
 
 **Uzasadnienie:** `git log` na `main` ma odzwierciedlac strukture etapow projektu — jeden commit = jeden etap = jedna sposta zmiana. Granularne commity sa dostepne w historii brancha do czasu jego usuniecia, co wystarcza do code-review i debugowania podczas trwania etapu.
+
+---
+
+## [Etap 9] Server-Sent Events (SSE) zamiast WebSocket dla streamingu odpowiedzi (2026-09-05)
+
+**Decyzja:** `POST /agent/chat/stream` zwraca `StreamingResponse` z `media_type="text/event-stream"` (SSE) zamiast otwierac polaczenie WebSocket.
+
+**Alternatywy odrzucone:** WebSocket (`fastapi.WebSocket`); dlugie pollowanie (`long polling`).
+
+**Uzasadnienie:** Komunikacja jest jednokierunkowa (serwer → klient, jeden request → jeden strumien odpowiedzi) — WebSocket dodalby zlozonosc dwukierunkowego protokolu bez realnej korzysci. SSE dziala na zwyklym `fetch` + `ReadableStream` po stronie przegladarki (bez dodatkowej biblioteki), automatycznie zamyka polaczenie po `done`, i przechodzi przez istniejacy Next.js rewrite proxy (`/api/:path*`) bez zmian w konfiguracji.
+
+---
+
+## [Etap 9] Chunkowanie po granicach zdan (SentenceChunker) dla TTS w locie (2026-09-05)
+
+**Decyzja:** `backend/app/agent/chunker.py::SentenceChunker` buforuje strumieniowane tokeny LLM i emituje fragment do syntezy mowy dopiero po osiagnieciu granicy zdania (`[.!?]\s+`) ORAZ minimum 8 slow (`MIN_WORDS`), scalajac krotkie zdania wiodace (np. "Tak.") z kolejnymi, zamiast wysylac je do TTS osobno.
+
+**Alternatywy odrzucone:** synteza calej odpowiedzi na koniec (brak streamingu audio — pierwotne podejscie z Etapu 4); chunkowanie po stalej liczbie znakow/tokenow bez wzgledu na granice zdan.
+
+**Uzasadnienie:** Wysylanie kazdego pojedynczego krotkiego zdania do ElevenLabs osobno psuje naturalnosc audio (urwane, zbyt czeste fragmenty) i mnozy liczbe platnych wywolan API. Próg 8-slowny gwarantuje, ze kazdy fragment audio brzmi jak pelna, sensowna fraza, a zdania krotsze sa doklejane do nastepnych zamiast tworzyc osobny (zbyt krotki) request do TTS.
+
+---
+
+## [Etap 9] Rownolegle wywolania TTS, ale odtwarzanie w kolejnosci powstania (2026-09-05)
+
+**Decyzja:** `stream_agent_response` planuje kazdy fragment zdania jako niezalezny `asyncio.create_task` (rownolegle wywolania ElevenLabs), ale `await`-uje je w kolejnosci utworzenia przed wyslaniem zdarzenia `audio` przez SSE — gwarantuje to poprawna kolejnosc odtwarzania mimo rownoleglej syntezy.
+
+**Alternatywy odrzucone:** sekwencyjne `await` kazdego wywolania TTS przed rozpoczeciem kolejnego (prostsze, ale sumuje latencje kazdego wywolania API zamiast je nakladac); wysylanie audio w kolejnosci ukonczenia (`asyncio.as_completed`) — szybsze, ale psuje kolejnosc odtwarzania po stronie przegladarki.
+
+**Uzasadnienie:** `await task[i]` blokuje tylko do ukonczenia zadania `i`, niezaleznie od tego czy zadanie `i+1` skonczylo sie wczesniej — dzieki temu kolejnosc odtwarzania = kolejnosc zdan w odpowiedzi, a czas oczekiwania na cala odpowiedz jest ograniczony przez najwolniejsze wywolanie, nie przez ich sume. Generator dodatkowo obejmuje cala petle `try/except/finally` — blad w dowolnym miejscu (LLM lub TTS) wysyla zdarzenie `error` zamiast ubijac strumien bez wyjasnienia, a niedokonczone zadania TTS sa anulowane przy przedwczesnym zamknieciu polaczenia (np. klient rozlacza sie w trakcie), zeby nie generowac platnych zapytan do API dla nikogo.
