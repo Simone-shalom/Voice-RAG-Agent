@@ -1,0 +1,92 @@
+[
+  {
+    "id": "q01",
+    "question": "What is the main argument the host makes about AI replacing knowledge workers?",
+    "expected_topics": ["AI", "knowledge workers", "automation", "employment"],
+    "difficulty": "simple"
+  },
+  {
+    "id": "q02",
+    "question": "How does the guest define retrieval-augmented generation?",
+    "expected_topics": ["retrieval", "augmented generation", "RAG", "definition"],
+    "difficulty": "simple"
+  },
+  {
+    "id": "q03",
+    "question": "What specific benchmark numbers are mentioned when comparing GPT-4 to Claude?",
+    "expected_topics": ["GPT-4", "Claude", "benchmark", "comparison"],
+    "difficulty": "simple"
+  },
+  {
+    "id": "q04",
+    "question": "What three steps does the speaker recommend for prompt engineering?",
+    "expected_topics": ["prompt engineering", "steps", "technique"],
+    "difficulty": "simple"
+  },
+  {
+    "id": "q05",
+    "question": "What is the speaker's opinion on open-source versus proprietary models?",
+    "expected_topics": ["open-source", "proprietary", "models", "opinion"],
+    "difficulty": "simple"
+  },
+  {
+    "id": "q06",
+    "question": "How does the discussion of vector databases in episode 1 compare to what is said in episode 2?",
+    "expected_topics": ["vector databases", "comparison", "episodes"],
+    "difficulty": "comparison"
+  },
+  {
+    "id": "q07",
+    "question": "Which episode covers fine-tuning most thoroughly, and what method does it recommend?",
+    "expected_topics": ["fine-tuning", "method", "recommendation"],
+    "difficulty": "comparison"
+  },
+  {
+    "id": "q08",
+    "question": "What do the different guests say about latency requirements for production AI systems?",
+    "expected_topics": ["latency", "production", "requirements"],
+    "difficulty": "comparison"
+  },
+  {
+    "id": "q09",
+    "question": "How has the advice on context window usage changed across episodes?",
+    "expected_topics": ["context window", "advice", "evolution"],
+    "difficulty": "comparison"
+  },
+  {
+    "id": "q10",
+    "question": "What is the common thread between discussions of hallucination mitigation across all episodes?",
+    "expected_topics": ["hallucination", "mitigation", "common thread"],
+    "difficulty": "comparison"
+  },
+  {
+    "id": "q11",
+    "question": "First, find where embeddings are discussed, then explain what the speaker says about chunking strategy and how it affects retrieval quality.",
+    "expected_topics": ["embeddings", "chunking", "retrieval quality"],
+    "difficulty": "multi_hop"
+  },
+  {
+    "id": "q12",
+    "question": "Who is the guest in the episode that covers agents most extensively, and what specific agent framework do they build a demo with?",
+    "expected_topics": ["agent", "guest", "framework", "demo"],
+    "difficulty": "multi_hop"
+  },
+  {
+    "id": "q13",
+    "question": "Find the timestamp where streaming responses are first mentioned and explain the use case described there.",
+    "expected_topics": ["streaming", "timestamp", "use case"],
+    "difficulty": "multi_hop"
+  },
+  {
+    "id": "q14",
+    "question": "The host mentions a specific company's production incident related to LLM output parsing — find that story and summarize what went wrong.",
+    "expected_topics": ["production incident", "LLM", "output parsing", "company"],
+    "difficulty": "multi_hop"
+  },
+  {
+    "id": "q15",
+    "question": "Trace the argument made about model evaluation: where does it start, what evidence is cited, and what conclusion does the speaker reach?",
+    "expected_topics": ["model evaluation", "evidence", "conclusion", "argument"],
+    "difficulty": "multi_hop"
+  }
+]
