@@ -66,3 +66,15 @@ def test_ingest_from_rss_empty_feed_returns_empty_result():
 
     assert result == {"episodes": [], "errors": []}
     mock_ingest.assert_not_called()
+
+
+def test_ingest_from_rss_hides_unexpected_error_detail():
+    entries = [{"title": "Bad", "audio_url": "https://example.com/bad.mp3"}]
+
+    with patch("app.ingest.service.parse_feed", return_value=entries), \
+         patch("app.ingest.service.ingest_from_url", side_effect=OSError("leaked /srv/secret/path")):
+        result = ingest_from_rss("https://example.com/feed.xml", db=MagicMock())
+
+    assert len(result["errors"]) == 1
+    assert "leaked" not in result["errors"][0]["error"]
+    assert "secret" not in result["errors"][0]["error"]

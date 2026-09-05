@@ -93,3 +93,11 @@ def test_search_hybrid_rerank_no_key_returns_400(client):
         response = client.get("/search?q=hello&mode=hybrid%2Brerank")
     assert response.status_code == 400
     assert "COHERE_API_KEY" in response.json()["detail"]
+
+
+def test_search_returns_500_and_hides_detail_on_unexpected_failure(client):
+    with patch("app.search.router.semantic_search", side_effect=OSError("leaked connection string")):
+        response = client.get("/search", params={"q": "test"})
+
+    assert response.status_code == 500
+    assert "leaked connection string" not in response.json()["detail"]

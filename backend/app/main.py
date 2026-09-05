@@ -1,13 +1,22 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
 
+from .core.logging import configure_logging
+from .core.rate_limit import limiter
 from .db.session import engine, init_db
 from .agent.router import router as agent_router
 from .episodes.router import router as episodes_router
 from .ingest.router import router as ingest_router
 from .search.router import router as search_router
 from .voice.router import router as voice_router
+
+configure_logging()
 
 
 @asynccontextmanager
@@ -17,6 +26,22 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Voice Knowledge Agent", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+_allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(ingest_router)
 app.include_router(search_router)

@@ -235,3 +235,53 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 **Alternatywy odrzucone:** recznе parsowanie przez `xml.etree.ElementTree` z wlasna logika obslugi RSS 2.0 / Atom / itunes namespace; `lxml` (wymaga kompilacji C, ryzyko problemow na Windows analogiczne do `elevenlabs>=1` z Etapu 4).
 
 **Uzasadnienie:** `feedparser` jest de facto standardem do parsowania podcastowych feedow w Pythonie — normalizuje roznice miedzy RSS 2.0 i Atom, obsluguje malformed XML (tryb "bozo") i nie wymaga kompilacji natywnej (czysty Python), co jest istotne po doswiadczeniu z `elevenlabs` SDK na Windows w Etapie 4. Batch-owe niepowodzenie calego ingest (np. nieosiagalny URL feedu) jest obslugiwane w `POST /ingest/rss` przez `HTTPException(400, ...)`, spojnie z `/ingest/upload` i `/ingest/url`; niepowodzenie pojedynczego odcinka w ramach batcha jest laczone w liste `errors` zamiast przerywac cala operacje.
+
+---
+
+## [Etap 13] Ochrona SSRF: walidacja schematu + klasyfikacja adresu IP zamiast pelnego pinningu polaczenia (2026-09-06)
+
+**Decyzja:** `backend/app/core/url_safety.py::assert_safe_url` odrzuca URL-e z innym schematem niz http/https oraz takie, ktorych hostname rozwiazuje sie (przez `socket.getaddrinfo`) na adres prywatny/loopback/link-local/reserved/multicast/unspecified (w tym warianty IPv4-mapped IPv6). Kazdy redirect w kliencie `httpx` jest ponownie walidowany przez `event_hooks={"request": [...]}`. Wywolywana w `ingest_from_url` i `parse_feed` przed jakimkolwiek realnym polaczeniem sieciowym.
+
+**Alternatywy odrzucone:** brak walidacji (stan sprzed Etapu 13, podatny na SSRF do metadanych chmury/uslug wewnetrznych); pelne pinowanie polaczenia do zweryfikowanego adresu IP przez wlasny transport HTTP — zamknieloby luke DNS-rebinding (TOCTOU miedzy sprawdzeniem adresu a faktycznym polaczeniem httpx), ale wymagaloby wlasnej implementacji warstwy transportowej.
+
+**Uzasadnienie:** Endpointy `/ingest/url` i `/ingest/rss` pozwalaly serwerowi pobrac dowolny URL podany przez uzytkownika. Walidacja na poziomie DNS + klasyfikacji IP zatrzymuje realistyczne ataki (`file://`, `localhost`, `169.254.169.254`, sieci prywatne) przy minimalnym koszcie implementacyjnym i zerowych nowych zaleznosciach. Ryzyko DNS-rebinding pozostaje swiadomie zaakceptowanym ograniczeniem — nieproporcjonalne dla projektu portfolio bez wlasnej infrastruktury transportowej; oba endpointy sa dodatkowo za opcjonalna bramka `X-API-Key` i rate-limitem, co znaczaco podnosi koszt takiego ataku.
+
+---
+
+## [Etap 13] Ograniczenie i uwierzytelnianie tylko dla `/ingest/*`, nie dla czatu/wyszukiwania/glosu (2026-09-06)
+
+**Decyzja:** Router `/ingest` ma `dependencies=[Depends(require_api_key)]` (opcjonalny wspoldzielony klucz przez naglowek `X-API-Key`, aktywny tylko gdy zmienna `API_KEY` jest ustawiona) oraz rate-limity `slowapi` (5-10/min). `/agent/chat`, `/agent/chat/stream`, `/voice/stt`, `/voice/tts` maja rate-limity (20/min), ale nie wymagaja klucza API.
+
+**Alternatywy odrzucone:** wymog klucza API na wszystkich endpointach (w tym czacie/wyszukiwaniu) — zmienialby charakter portfolio-demo z "sprobuj live" na "tylko dla wlasciciela"; pelny system logowania uzytkownikow (nieproporcjonalny do zakresu projektu single-user).
+
+**Uzasadnienie:** Endpointy ingest sa operacjami zapisu generujacymi koszt (Whisper) niezaleznie od tego, czy dane sa potem uzywane — sensowne jest ograniczenie ich do operatora. Czat/wyszukiwanie/glos sa rdzeniem demo, ktore ma dzialac od reki dla kazdego odwiedzajacego; sam rate-limiting jest tu wystarczajacym zabezpieczeniem kosztowym. `API_KEY` jest domyslnie puste (brak wymogu) — swiadomy kompromis udokumentowany w `.env.example`: operator powinien je ustawic przed produkcyjnym udostepnieniem, jesli chce ograniczyc kto moze dorzucac nowe nagrania. Frontend wstrzykuje naglowek `X-API-Key` po stronie serwera przez `frontend/middleware.ts` (nigdy w kodzie dzialajacym w przegladarce), zeby ustawienie klucza nie psulo UI do ingestu.
+
+---
+
+## [Etap 13] Klucz rate-limitera: `X-Forwarded-For` zamiast surowego adresu polaczenia TCP (2026-09-06)
+
+**Decyzja:** `backend/app/core/rate_limit.py::_client_key` odczytuje pierwszy adres z naglowka `X-Forwarded-For`, jesli jest obecny, zamiast domyslnego w `slowapi` `request.client.host`.
+
+**Alternatywy odrzucone:** `slowapi.util.get_remote_address` bez modyfikacji (zachowanie domyslne).
+
+**Uzasadnienie:** Caly ruch przegladarki przechodzi przez serwerowy rewrite-proxy Next.js (`/api/:path*`), wiec `request.client.host` widzialby zawsze adres kontenera frontendu, a nie prawdziwego uzytkownika — kazdy limit zbieralby sie do jednego wspoldzielonego "kubelka" dla wszystkich odwiedzajacych zamiast dzialac per-uzytkownik. Odczyt `X-Forwarded-For` (ustawianego przez wiekszosc proxy produkcyjnych, w tym docelowy Vercel z planu Etapu 11) przywraca zamierzone dzialanie limitow.
+
+---
+
+## [Etap 13] Sniffing magic bytes zamiast `libmagic`/`python-magic` dla walidacji uploadu (2026-09-06)
+
+**Decyzja:** `backend/app/ingest/validators.py::is_probably_audio` sprawdza pierwsze bajty pliku pod katem znanych sygnatur kontenerow audio (ID3/MP3 frame sync, RIFF+WAVE, Ogg, ftyp/M4A, WebM/EBML) zamiast uzywac biblioteki do rozpoznawania typow MIME.
+
+**Alternatywy odrzucone:** `python-magic` (wiaze `libmagic`, biblioteke C — ryzyko problemow na Windows analogiczne do `elevenlabs>=1` z Etapu 4 i `lxml` z Etapu 12).
+
+**Uzasadnienie:** Endpoint `/ingest/upload` przyjmowal dowolne dane binarne bez zadnej walidacji tresci, marnujac platne wywolania Whisper na oczywiscie nie-audio pliki. Prosty sniffing sygnatur pokrywa realistyczne przypadki (typowe formaty audio) bez nowej zaleznosci binarnej, spojnie z reszta projektu, ktory konsekwentnie unika bibliotek wymagajacych kompilacji C na Windows.
+
+---
+
+## [Etap 13] Dwupoziomowa obsluga bledow: znane wyjatki -> 400 z tresc; nieoczekiwane -> 500 generyczny + log (2026-09-06)
+
+**Decyzja:** Kazdy router (`ingest`, `search`, `agent/chat`) rozroznia `(ValueError, RuntimeError)` (swiadomie rzucane przez wlasny kod, bezpieczna tresc) od pozostalych wyjatkow (`Exception`), ktore sa logowane po stronie serwera (`logger.exception`) i zwracane jako `HTTPException(500, "Internal error...")` bez surowej tresci.
+
+**Alternatywy odrzucone:** pozostawienie `except Exception as e: raise HTTPException(400, str(e))` (stan sprzed Etapu 13) — przekazywalo surowa tresc kazdego wyjatku, w tym fragmenty odpowiedzi API zewnetrznych i sciezki systemowe, bezposrednio do klienta.
+
+**Uzasadnienie:** Rozroznienie po typie wyjatku pozwala zachowac uzyteczne komunikaty dla oczekiwanych przypadkow (np. "ANTHROPIC_API_KEY not set", bledny URL rozpoznany przez `httpx.HTTPError`, blad transkrypcji z `openai.APIError`) bez utraty ich czytelnosci, jednoczesnie chroniac przed przypadkowym wyciekiem przy nieoczekiwanych awariach — te trafiaja teraz wylacznie do logow serwera. Sciezka bledow strumieniowanych przez SSE (`/agent/chat/stream`) pozostaje bez zmian (przekazuje surowa tresc bledu w zdarzeniu `error`) — swiadomie pozostawiona poza zakresem etapu, bo jedynym odbiorca tego strumienia jest ten sam klient przegladarki, ktory wyslal zapytanie.

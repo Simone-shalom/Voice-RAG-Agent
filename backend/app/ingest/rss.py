@@ -1,5 +1,7 @@
 import feedparser
 
+from ..core.url_safety import assert_safe_url
+
 
 def parse_feed(feed_url: str, limit: int = 5) -> list[dict]:
     """
@@ -7,6 +9,7 @@ def parse_feed(feed_url: str, limit: int = 5) -> list[dict]:
     [{"title": str, "audio_url": str}, ...] in feed order. Entries without
     an audio enclosure link are skipped (not counted against `limit`).
     """
+    assert_safe_url(feed_url)
     parsed = feedparser.parse(feed_url)
     episodes: list[dict] = []
     for entry in parsed.entries:

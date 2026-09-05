@@ -29,7 +29,7 @@ Backend hot-reloads via volume mount (`./backend:/app`).
 
 ```bash
 cd backend
-python -m pytest tests/ -v       # 131 tests, all mocked (no real DB/API calls needed)
+python -m pytest tests/ -v       # 206 tests, all mocked (no real DB/API calls needed)
 ```
 
 ## Git conventions
@@ -151,6 +151,9 @@ Copy `.env.example` → `.env` (never commit `.env`).
 | `ANTHROPIC_API_KEY` | Agent (LangGraph LLM), Eval (LLM-as-judge) |
 | `ELEVENLABS_API_KEY` | Voice TTS |
 | `COHERE_API_KEY` | hybrid+rerank search mode (optional — falls back to hybrid) |
+| `ALLOWED_ORIGINS` | CORS (Etap 13) — comma-separated frontend origins, default `http://localhost:3000` |
+| `RATE_LIMIT_ENABLED` | Rate limiting (Etap 13) — `"false"` disables it (tests default it off); default `true` |
+| `API_KEY` | Optional `X-API-Key` gate on `/ingest/*` (Etap 13) — blank disables the gate; `frontend/middleware.ts` injects it server-side when set |
 
 ## Known gotchas
 
@@ -160,7 +163,7 @@ Copy `.env.example` → `.env` (never commit `.env`).
 - **pgvector cosine**: use `<=>` operator for cosine distance; always add `WHERE embedding IS NOT NULL` guard.
 - **RRF**: sum reciprocal **ranks** (1/(k+rank)), not raw similarity scores. Verify with test that puts a chunk in both lists — it should rank first in fused results.
 - **Whisper STT for voice queries**: returns plain `str`, not segment list. Only ingest transcriber returns segments (for timestamp chunking).
-- **Test suite**: 131 tests, all mocked. Never require a running database or real API keys for tests.
+- **Test suite**: 206 tests, all mocked. Never require a running database or real API keys for tests.
 
 ## Ingest commands
 

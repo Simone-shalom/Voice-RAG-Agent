@@ -45,3 +45,10 @@ def test_synthesise_calls_correct_endpoint():
     call_args = mock_httpx.post.call_args
     assert "text-to-speech" in call_args[0][0]
     assert call_args[1]["headers"]["xi-api-key"] == "key123"
+
+
+def test_synthesise_rejects_text_over_length_cap():
+    from app.voice.tts import MAX_TTS_CHARS
+
+    with pytest.raises(ValueError, match="exceeds"):
+        synthesise("a" * (MAX_TTS_CHARS + 1))

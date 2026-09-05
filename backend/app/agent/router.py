@@ -1,15 +1,19 @@
+import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.rate_limit import limiter
 from ..db.session import get_db
 from .graph import build_graph
 from .streaming import stream_agent_response
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -25,7 +29,8 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+def chat(request: Request, body: ChatRequest, db: Session = Depends(get_db)):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=400, detail="ANTHROPIC_API_KEY not set")
@@ -34,21 +39,25 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         llm = ChatAnthropic(model="claude-haiku-4-5-20251001", api_key=api_key)
         graph = build_graph(db=db, llm=llm)
         result = graph.invoke(
-            {"messages": [HumanMessage(content=request.message)], "step_count": 0},
-            config={"configurable": {"thread_id": request.thread_id}},
+            {"messages": [HumanMessage(content=body.message)], "step_count": 0},
+            config={"configurable": {"thread_id": body.thread_id}},
         )
         last_msg = result["messages"][-1]
         return ChatResponse(reply=last_msg.content, steps=result["step_count"])
-    except Exception as e:
+    except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("agent chat failed")
+        raise HTTPException(status_code=500, detail="Internal error — please try again later.")
 
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def chat_stream(request: Request, body: ChatRequest, db: Session = Depends(get_db)):
     async def generate():
         async for chunk in stream_agent_response(
-            message=request.message,
-            thread_id=request.thread_id,
+            message=body.message,
+            thread_id=body.thread_id,
             db=db,
         ):
             yield chunk

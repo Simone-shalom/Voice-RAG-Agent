@@ -1,7 +1,8 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from ..core.rate_limit import limiter
 from .stt import transcribe_audio
 from .tts import synthesise
 
@@ -17,7 +18,8 @@ class TTSRequest(BaseModel):
 
 
 @router.post("/stt", response_model=STTResponse)
-async def speech_to_text(audio: UploadFile = File(...)):
+@limiter.limit("20/minute")
+async def speech_to_text(request: Request, audio: UploadFile = File(...)):
     try:
         file_bytes = await audio.read()
         text = transcribe_audio(file_bytes, audio.filename or "audio.webm")
@@ -27,9 +29,10 @@ async def speech_to_text(audio: UploadFile = File(...)):
 
 
 @router.post("/tts")
-def text_to_speech(request: TTSRequest):
+@limiter.limit("20/minute")
+def text_to_speech(request: Request, body: TTSRequest):
     try:
-        audio_bytes = synthesise(request.text)
+        audio_bytes = synthesise(body.text)
         return Response(content=audio_bytes, media_type="audio/mpeg")
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))

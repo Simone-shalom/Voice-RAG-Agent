@@ -1,3 +1,4 @@
+import logging
 import tempfile
 import uuid
 from pathlib import Path
@@ -10,7 +11,12 @@ from .chunker import chunk_segments
 from .embedder import embed_texts
 from .rss import parse_feed
 from .transcriber import transcribe
+from ..core.url_safety import assert_safe_url
 from ..db.models import Chunk, Episode
+
+logger = logging.getLogger(__name__)
+
+MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024  # 200 MB cap on ingest_from_url downloads
 
 
 def ingest_audio(audio_path: Path, filename: str, source_url: str | None, db: Session) -> Episode:
@@ -38,20 +44,35 @@ def ingest_audio(audio_path: Path, filename: str, source_url: str | None, db: Se
     return episode
 
 
+def _validate_redirect(request: httpx.Request) -> None:
+    """httpx 'request' event hook — re-validates every hop of a redirect chain."""
+    assert_safe_url(str(request.url))
+
+
 def ingest_from_url(url: str, db: Session) -> Episode:
+    assert_safe_url(url)
     url_path = Path(urlparse(url).path)
     suffix = url_path.suffix or ".mp3"
     filename = url_path.name or "audio"
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
         tmp_path = Path(f.name)
-        with httpx.Client(follow_redirects=True, timeout=60.0) as http:
-            with http.stream("GET", url) as response:
-                response.raise_for_status()
-                for chunk in response.iter_bytes():
-                    f.write(chunk)
 
     try:
+        with httpx.Client(
+            follow_redirects=True,
+            timeout=60.0,
+            event_hooks={"request": [_validate_redirect]},
+        ) as http:
+            with http.stream("GET", url) as response:
+                response.raise_for_status()
+                total = 0
+                with open(tmp_path, "wb") as out:
+                    for chunk in response.iter_bytes():
+                        total += len(chunk)
+                        if total > MAX_DOWNLOAD_BYTES:
+                            raise ValueError(f"download exceeds {MAX_DOWNLOAD_BYTES} byte limit")
+                        out.write(chunk)
         return ingest_audio(tmp_path, filename, url, db)
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -72,7 +93,10 @@ def ingest_from_rss(feed_url: str, db: Session, limit: int = 5) -> dict:
         try:
             episode = ingest_from_url(entry["audio_url"], db)
             episodes.append(episode)
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             errors.append({"title": entry["title"], "error": str(e)})
+        except Exception:
+            logger.exception("RSS batch episode ingest failed: %s", entry["title"])
+            errors.append({"title": entry["title"], "error": "internal error — see server logs"})
 
     return {"episodes": episodes, "errors": errors}

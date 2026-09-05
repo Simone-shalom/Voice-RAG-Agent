@@ -2,6 +2,8 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "postgresql://voicerag:voicerag@localhost:5433/voicerag")
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+os.environ.pop("API_KEY", None)
 
 from unittest.mock import MagicMock
 

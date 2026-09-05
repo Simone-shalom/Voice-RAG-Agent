@@ -33,3 +33,12 @@ def test_agent_chat_missing_anthropic_key_returns_400(client):
         response = client.post("/agent/chat", json={"message": "hi", "thread_id": "t2"})
     assert response.status_code == 400
     assert "ANTHROPIC_API_KEY" in response.json()["detail"]
+
+
+def test_chat_returns_500_and_hides_detail_on_unexpected_failure(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    with patch("app.agent.router.build_graph", side_effect=OSError("leaked internal path")):
+        response = client.post("/agent/chat", json={"message": "hi", "thread_id": "t1"})
+
+    assert response.status_code == 500
+    assert "leaked internal path" not in response.json()["detail"]
