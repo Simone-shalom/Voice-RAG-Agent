@@ -6,6 +6,7 @@ from .db.session import engine, init_db
 from .agent.router import router as agent_router
 from .ingest.router import router as ingest_router
 from .search.router import router as search_router
+from .voice.router import router as voice_router
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ app = FastAPI(title="Voice Knowledge Agent", lifespan=lifespan)
 app.include_router(ingest_router)
 app.include_router(search_router)
 app.include_router(agent_router)
+app.include_router(voice_router)
 
 
 @app.get("/health")
