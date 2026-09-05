@@ -68,6 +68,36 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 
 ---
 
+## [Etap 2] BM25 via PostgreSQL tsvector vs. external Elasticsearch/Typesense (2026-09-05)
+
+**Decyzja:** BM25 przez natywny `tsvector`/`ts_rank` PostgreSQL jako generated stored column (`GENERATED ALWAYS AS (to_tsvector('english', text)) STORED`) z indeksem GIN.
+
+**Alternatywy odrzucone:** osobny silnik Elasticsearch lub Typesense; biblioteka Python `rank_bm25` (in-memory); `websearch_to_tsquery` zamiast `plainto_tsquery`.
+
+**Uzasadnienie:** PostgreSQL jest juz w stacku — dodanie `tsvector` nie wymaga nowego serwisu. Generated column sprawia, ze kolumna jest zawsze aktualna bez triggera czy backfillingu. `plainto_tsquery` lepiej toleruje naturalne zapytania (brak wymagania operatorow); GIN index daje O(log n) lookup. Kompromis: ts_rank nie jest identyczny z BM25 Okapi (brak normalizacji dlugosci dokumentu domyslnie), ale dla transkrypcji audio o podobnej dlugosci chunkow roznica jest pomijalnie mala.
+
+---
+
+## [Etap 2] Reciprocal Rank Fusion (RRF) vs. score normalization (2026-09-05)
+
+**Decyzja:** RRF z k=60 jako metoda fuzji semantic + BM25. Kazda lista przekazuje rangi (1, 2, 3...), nie surowe score. Suma `1/(k+rank)` per lista.
+
+**Alternatywy odrzucone:** normalizacja min-max score + srednia wazona; Borda Count; liniowa kombinacja score z waga alfa.
+
+**Uzasadnienie:** RRF nie wymaga kalibracji wagi alfa miedzy cosine similarity a ts_rank (sa na roznych skalach i nie sa bezposrednio porownywalnych). k=60 to standardowa wartosc z pracy Cormack et al. 2009 — dobrze dziala w praktyce bez tuningu. Fetch 2x limit z kazdego sub-searcher daje wystarczajacy headroom dla fuzji bez nadmiernego kosztu zapytan.
+
+---
+
+## [Etap 2] Cohere Rerank vs. lokalny cross-encoder (2026-09-05)
+
+**Decyzja:** Cohere Rerank API (`rerank-english-v3.0`) jako opcjonalna warstwa reranking. Wymagany `COHERE_API_KEY`; brak klucza zwraca HTTP 400 z czytelnym komunikatem (nie cichy fallback).
+
+**Alternatywy odrzucone:** lokalny cross-encoder (HuggingFace `cross-encoder/ms-marco-MiniLM-L-6-v2`); zawsze-wlaczony reranking w trybie hybrid.
+
+**Uzasadnienie:** Cross-encoder wymaga GPU lub wolnego inference na CPU — dev-machine nie ma GPU. Cohere API jest drop-in replacement i latwo wymienialny pozniej (ten sam interfejs: query + documents → scores). Opcjonalnosc przez zmienna srodowiskowa zapewnia, ze hybrid bez reranking dziala w kazdy srodowisku bez kluczy zewnetrznych.
+
+---
+
 ## [Etap 1] Konwencja: 1 squash-commit per etap na `main` (2026-09-05)
 
 **Decyzja:** granularne commity (per-task) tworzone sa na branchu roboczym podczas developmentu i code-review; przed scaleniem z `main` caly branch jest sciskany do jednego commita z pelnym opisem zmian.
