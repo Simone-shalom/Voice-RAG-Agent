@@ -215,3 +215,23 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 **Alternatywy odrzucone:** sekwencyjne `await` kazdego wywolania TTS przed rozpoczeciem kolejnego (prostsze, ale sumuje latencje kazdego wywolania API zamiast je nakladac); wysylanie audio w kolejnosci ukonczenia (`asyncio.as_completed`) — szybsze, ale psuje kolejnosc odtwarzania po stronie przegladarki.
 
 **Uzasadnienie:** `await task[i]` blokuje tylko do ukonczenia zadania `i`, niezaleznie od tego czy zadanie `i+1` skonczylo sie wczesniej — dzieki temu kolejnosc odtwarzania = kolejnosc zdan w odpowiedzi, a czas oczekiwania na cala odpowiedz jest ograniczony przez najwolniejsze wywolanie, nie przez ich sume. Generator dodatkowo obejmuje cala petle `try/except/finally` — blad w dowolnym miejscu (LLM lub TTS) wysyla zdarzenie `error` zamiast ubijac strumien bez wyjasnienia, a niedokonczone zadania TTS sa anulowane przy przedwczesnym zamknieciu polaczenia (np. klient rozlacza sie w trakcie), zeby nie generowac platnych zapytan do API dla nikogo.
+
+---
+
+## [Etap 12] Prosty energy-based VAD zamiast Silero/WebRTC VAD (2026-09-05)
+
+**Decyzja:** `frontend/components/AudioRecorder.tsx` wykrywa koniec wypowiedzi przez prog amplitudy RMS liczony z `AnalyserNode.getByteTimeDomainData` (Web Audio API), bez zadnej dodatkowej biblioteki — nagrywanie zatrzymuje sie automatycznie po 1.5s ciszy, ale dopiero gdy wczesniej wykryto mowe (min. 300ms powyzej progu).
+
+**Alternatywy odrzucone:** Silero VAD przez `@ricky0123/vad-web` (onnxruntime-web + pliki modelu ONNX doladowywane w przegladarce); natywny WebRTC VAD (biblioteka C, brak dojrzalego bindingu przegladarkowego).
+
+**Uzasadnienie:** Silero VAD dodaje ciezka zaleznosc (WASM runtime + kilkumegabajtowy model) i komplikuje bundling w Next.js/Docker na Windows — nieproporcjonalny koszt jak na funkcje "polish", nie rdzennie techniczna (w przeciwienstwie do streamingu z Etapu 9). Prog RMS jest w pelni wystarczajacy dla typowego przypadku uzycia (krotkie pytanie glosowe w cichym otoczeniu) i nie wymaga zadnej nowej zaleznosci npm — cala logika miesci sie w jednym pliku komponentu.
+
+---
+
+## [Etap 12] `feedparser` zamiast recznego parsowania XML dla RSS ingest (2026-09-05)
+
+**Decyzja:** `backend/app/ingest/rss.py::parse_feed` korzysta z biblioteki `feedparser` (czysty Python, bez zaleznosci C) do parsowania feedow RSS/Atom i wyciagania enclosure z audio.
+
+**Alternatywy odrzucone:** recznе parsowanie przez `xml.etree.ElementTree` z wlasna logika obslugi RSS 2.0 / Atom / itunes namespace; `lxml` (wymaga kompilacji C, ryzyko problemow na Windows analogiczne do `elevenlabs>=1` z Etapu 4).
+
+**Uzasadnienie:** `feedparser` jest de facto standardem do parsowania podcastowych feedow w Pythonie — normalizuje roznice miedzy RSS 2.0 i Atom, obsluguje malformed XML (tryb "bozo") i nie wymaga kompilacji natywnej (czysty Python), co jest istotne po doswiadczeniu z `elevenlabs` SDK na Windows w Etapie 4. Batch-owe niepowodzenie calego ingest (np. nieosiagalny URL feedu) jest obslugiwane w `POST /ingest/rss` przez `HTTPException(400, ...)`, spojnie z `/ingest/upload` i `/ingest/url`; niepowodzenie pojedynczego odcinka w ramach batcha jest laczone w liste `errors` zamiast przerywac cala operacje.

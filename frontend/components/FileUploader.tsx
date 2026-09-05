@@ -27,10 +27,12 @@ interface Props {
 }
 
 export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Props) {
-  const [tab, setTab] = useState<"file" | "url">("file");
+  const [tab, setTab] = useState<"file" | "url" | "rss">("file");
   const [status, setStatus] = useState<UploadStatus>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const [urlInput, setUrlInput] = useState("");
+  const [rssUrl, setRssUrl] = useState("");
+  const [rssLimit, setRssLimit] = useState(5);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +90,48 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
     }
   }
 
+  async function ingestRss() {
+    const url = rssUrl.trim();
+    if (!url) return;
+    setStatus({ kind: "uploading", label: `Fetching feed & ingesting up to ${rssLimit} episodes…` });
+    try {
+      const res = await fetch("/api/ingest/rss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, limit: rssLimit }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const result: { episodes: IngestResult[]; errors: { title: string; error: string }[] } = await res.json();
+      const totalChunks = result.episodes.reduce((sum, e) => sum + e.chunk_count, 0);
+      if (result.episodes.length === 0 && result.errors.length > 0) {
+        setStatus({ kind: "error", message: `All ${result.errors.length} episode(s) failed to ingest.` });
+      } else if (result.errors.length > 0) {
+        setStatus({
+          kind: "done",
+          result: {
+            id: "batch",
+            filename: `${result.episodes.length} episode(s) ingested, ${result.errors.length} failed`,
+            chunk_count: totalChunks,
+          },
+        });
+        setRssUrl("");
+      } else {
+        setStatus({
+          kind: "done",
+          result: {
+            id: "batch",
+            filename: `${result.episodes.length} episode(s) ingested from feed`,
+            chunk_count: totalChunks,
+          },
+        });
+        setRssUrl("");
+      }
+      await loadEpisodes();
+    } catch (err) {
+      setStatus({ kind: "error", message: String(err) });
+    }
+  }
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -133,6 +177,16 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
             }`}
           >
             URL
+          </button>
+          <button
+            onClick={() => setTab("rss")}
+            className={`flex-1 py-1.5 font-medium transition-colors ${
+              tab === "rss"
+                ? "bg-indigo-600 text-white"
+                : "bg-gray-900 text-gray-400 hover:bg-gray-800"
+            }`}
+          >
+            RSS
           </button>
         </div>
 
@@ -189,6 +243,42 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
             >
               Add
             </button>
+          </div>
+        )}
+
+        {/* RSS feed input */}
+        {tab === "rss" && (
+          <div className="flex flex-col gap-2">
+            <input
+              value={rssUrl}
+              onChange={(e) => setRssUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !busy && ingestRss()}
+              placeholder="https://…/podcast-feed.xml"
+              disabled={busy}
+              className="flex-1 min-w-0 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs placeholder-gray-600 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+            />
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-gray-500 whitespace-nowrap">Max episodes</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={rssLimit}
+                onChange={(e) => setRssLimit(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                disabled={busy}
+                className="w-16 bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+              />
+              <button
+                onClick={ingestRss}
+                disabled={busy || !rssUrl.trim()}
+                className="ml-auto shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              >
+                Ingest Feed
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-600">
+              Downloads and transcribes up to {rssLimit} episode(s) from the feed. This can take several minutes.
+            </p>
           </div>
         )}
 

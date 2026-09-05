@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .chunker import chunk_segments
 from .embedder import embed_texts
+from .rss import parse_feed
 from .transcriber import transcribe
 from ..db.models import Chunk, Episode
 
@@ -54,3 +55,24 @@ def ingest_from_url(url: str, db: Session) -> Episode:
         return ingest_audio(tmp_path, filename, url, db)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def ingest_from_rss(feed_url: str, db: Session, limit: int = 5) -> dict:
+    """
+    Parses `feed_url` and ingests up to `limit` episodes via ingest_from_url.
+    A failure on one episode is captured, not raised — the batch continues.
+
+    Returns {"episodes": [Episode, ...], "errors": [{"title": str, "error": str}, ...]}.
+    """
+    entries = parse_feed(feed_url, limit=limit)
+    episodes: list[Episode] = []
+    errors: list[dict] = []
+
+    for entry in entries:
+        try:
+            episode = ingest_from_url(entry["audio_url"], db)
+            episodes.append(episode)
+        except Exception as e:
+            errors.append({"title": entry["title"], "error": str(e)})
+
+    return {"episodes": episodes, "errors": errors}
