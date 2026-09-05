@@ -30,10 +30,34 @@ def get_db():
 
 
 def init_db(engine_):
-    """Enable pgvector extension and create all tables."""
+    """Enable pgvector extension, create all tables, add tsvector search column."""
     from .models import Base
 
     with engine_.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'chunks' AND column_name = 'text_search'
+                  ) THEN
+                    ALTER TABLE chunks
+                    ADD COLUMN text_search tsvector
+                    GENERATED ALWAYS AS (to_tsvector('english', text)) STORED;
+                  END IF;
+                END
+                $$
+                """
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS chunks_text_search_gin "
+                "ON chunks USING GIN(text_search)"
+            )
+        )
         conn.commit()
     Base.metadata.create_all(bind=engine_)

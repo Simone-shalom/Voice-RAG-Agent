@@ -3,7 +3,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://voicerag:voicerag@localhost:
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
 from unittest.mock import MagicMock, patch
-from app.search.searcher import semantic_search
+from app.search.searcher import semantic_search, hybrid_search, hybrid_rerank_search
 
 
 def make_mock_row(chunk_id="c1", episode_id="e1", start_ts=1.0, end_ts=5.0, text="Hello", similarity=0.9):
@@ -42,3 +42,47 @@ def test_semantic_search_passes_limit_to_query():
 
     _, params = db.execute.call_args[0]
     assert params["limit"] == 5
+
+
+def _make_chunk(cid, sim=0.5):
+    return {"chunk_id": cid, "episode_id": "e1", "start_ts": 0.0, "end_ts": 5.0,
+            "text": f"text {cid}", "similarity": sim}
+
+
+def test_hybrid_search_fuses_semantic_and_bm25():
+    sem = [_make_chunk("a", 0.9), _make_chunk("b", 0.7)]
+    bm25 = [_make_chunk("b", 0.8), _make_chunk("c", 0.6)]
+    db = MagicMock()
+
+    with patch("app.search.searcher.semantic_search", return_value=sem) as m_sem, \
+         patch("app.search.searcher.bm25_search", return_value=bm25) as m_bm25:
+        result = hybrid_search("test query", limit=3, db=db)
+
+    assert m_sem.call_args.kwargs["limit"] == 6
+    assert m_bm25.call_args.kwargs["limit"] == 6
+    assert result[0]["chunk_id"] == "b"
+    assert {r["chunk_id"] for r in result} == {"a", "b", "c"}
+    assert "similarity" in result[0]
+
+
+def test_hybrid_search_returns_at_most_limit():
+    sem = [_make_chunk(str(i)) for i in range(20)]
+    db = MagicMock()
+
+    with patch("app.search.searcher.semantic_search", return_value=sem), \
+         patch("app.search.searcher.bm25_search", return_value=[]):
+        result = hybrid_search("q", limit=5, db=db)
+
+    assert len(result) <= 5
+
+
+def test_hybrid_rerank_search_calls_reranker():
+    fused = [_make_chunk("x")]
+    reranked = [{**fused[0], "similarity": 0.95}]
+    db = MagicMock()
+
+    with patch("app.search.searcher.hybrid_search", return_value=fused), \
+         patch("app.search.searcher.rerank", return_value=reranked):
+        result = hybrid_rerank_search("query", limit=5, db=db)
+
+    assert result[0]["similarity"] == 0.95
