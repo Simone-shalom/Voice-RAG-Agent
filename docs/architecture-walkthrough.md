@@ -402,3 +402,154 @@ dokłada nowego serwisu jeśli coś już jest w stacku, i każdy ma na tyle odiz
 lokalna, nie refaktor.
 
 Pełne uzasadnienia z odrzuconymi alternatywami → `DECISIONS.md`.
+
+---
+
+## 11. RAG i LangGraph — pogłębienie
+
+### Czym jest RAG (ogólnie)
+
+RAG (Retrieval-Augmented Generation) rozwiązuje jeden problem: LLM nie zna Twoich danych
+(podcastów) i nie mieści ich w kontekście. Rozwiązanie: zamiast pytać model wprost, **najpierw
+wyszukujesz relevantne fragmenty w swojej bazie, wklejasz je do kontekstu, dopiero potem prosisz
+LLM o odpowiedź na ich podstawie**.
+
+Klasyczny RAG (bez agenta) to sztywny **chain**:
+
+```
+pytanie → ZAWSZE retrieval (jeden strzał) → wklej top-k chunków do promptu → LLM generuje odpowiedź
+```
+
+Zawsze te same kroki, w tej samej kolejności, niezależnie od pytania.
+
+### RAG w tym projekcie — "agentic RAG"
+
+Tutaj retrieval **nie jest krokiem narzuconym z góry** — jest **narzędziem, o którego użyciu
+decyduje LLM**:
+
+```
+pytanie → LLM patrzy na pytanie → SAM decyduje:
+    "czy w ogóle potrzebuję szukać?"
+    "ile razy?"
+    "czy potrzebuję sprecyzować, porównać, dogłębić kontekst?"
+```
+
+Konsekwencje:
+- „Cześć, co potrafisz?" → LLM nie woła żadnego narzędzia, odpowiada od razu. 1 krok.
+- „Co mówią o pruningu?" → woła `search_transcripts` raz, dostaje chunki, odpowiada. 2 kroki.
+- „Porównaj epizod A i B, i pokaż więcej kontekstu wokół pierwszej wzmianki" → woła
+  `compare_across_episodes`, potem `get_context_around_timestamp`, dopiero wtedy odpowiada. 4 kroki.
+
+Ten sam kod obsługuje wszystkie przypadki — nic nie jest hardkodowane pod typ pytania. To
+odróżnia agenta od chaina: **agent ma pętlę decyzyjną, chain ma ustaloną sekwencję**.
+
+### Cztery ścieżki (routery) — kto za co odpowiada
+
+```
+backend/app/main.py
+├── /ingest/*   → ingest/router.py    → BUDUJE bazę wiedzy (offline, raz per plik audio)
+├── /search/*   → search/router.py    → surowy dostęp do wyszukiwania (testy/debug/eval)
+├── /agent/chat → agent/router.py     → GŁÓWNA ścieżka użytkownika — pytanie → odpowiedź
+├── /voice/*    → voice/router.py     → STT/TTS, niezależne od agenta
+└── /episodes/* → episodes/router.py  → CRUD-owy odczyt metadanych
+```
+
+`/search` i `/agent/chat` obie używają `hybrid_search()`, ale inaczej:
+- `/search` zwraca surowe wyniki jednym strzałem — używany przez eval harness
+  (`eval/runner.py` woła to per tryb: semantic/bm25/hybrid/hybrid+rerank) i do debugowania
+  jakości wyszukiwania.
+- `/agent/chat` **nie woła `/search` przez HTTP** — agent ma bezpośredni dostęp do
+  `hybrid_search()` jako Python-owej funkcji wewnątrz narzędzia `search_transcripts`
+  (`agent/tools.py:26-31`, closure nad tym samym `db: Session`). LLM decyduje *czy* i *ile razy*
+  to wywołać, nie endpoint.
+
+`/voice/stt` i `/voice/tts` są **całkowicie odklejone od agenta** — bezstanowe konwertery
+(audio→tekst, tekst→audio). Frontend orkiestruje kolejność: nagranie → `/voice/stt` → tekst jako
+`message` do `/agent/chat` → odpowiedź tekstowa → opcjonalnie `/voice/tts` → odtworzenie. Agent w
+ogóle nie wie, że pytanie przyszło z mikrofonu.
+
+### LangGraph — jak dokładnie działa jako framework
+
+Trzy pojęcia:
+
+**Node** — zwykła funkcja Pythona, dostaje aktualny stan, zwraca *update* do stanu (nie cały
+nowy stan — tylko zmiany):
+```python
+def agent_node(state, config):
+    response = llm_with_tools.invoke(state["messages"])
+    return {"messages": [response], "step_count": state["step_count"] + 1}
+```
+
+**Edge** — łączy węzły. Stała (`graph.add_edge("tools", "agent")` — zawsze z `tools` wracaj do
+`agent`) albo **warunkowa** (`add_conditional_edges` — funkcja decyduje dokąd iść na podstawie
+stanu):
+```python
+graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+```
+
+**Reducer** — mówi jak *łączyć* update ze stanem, zamiast go nadpisywać:
+```python
+messages: Annotated[list[BaseMessage], add_messages]
+```
+Bez reducera każdy update **nadpisałby** listę wiadomości. Z `add_messages` — **dopisuje**.
+Dzięki temu historia rozmowy (pytanie → wywołanie narzędzia → wynik → kolejne wywołanie →
+odpowiedź) rośnie krok po kroku i każdy węzeł widzi całość.
+
+Cały graf w tym projekcie ma dosłownie 2 węzły:
+
+```
+        ┌─────────┐
+   ┌───►│  agent   │
+   │    │  (LLM)   │
+   │    └────┬────┘
+   │         │ should_continue()
+   │      ┌──┴──┐
+   │  tools│    │END
+   │    ┌──▼──┐ │
+   └────┤tools│ │
+        └─────┘ ▼
+              koniec
+```
+
+- `agent_node`: woła LLM z bindowanymi narzędziami (`llm.bind_tools(tools)`) — model *może*
+  zwrócić zwykły tekst albo strukturalne `tool_calls`.
+- `tools` (gotowy `ToolNode` z `langgraph.prebuilt`, nie trzeba pisać ręcznie): czyta
+  `tool_calls` z ostatniej wiadomości, woła odpowiednią funkcję Pythona, wynik pakuje jako
+  `ToolMessage` i wraca.
+- `should_continue`: sprawdza czy `step_count >= MAX_STEPS` (6 — twardy limit przeciw
+  nieskończonej pętli) albo czy ostatnia wiadomość ma `tool_calls` — jeśli tak, `"tools"`, jeśli
+  nie, `END`.
+- `MemorySaver` (checkpointer): po każdym kroku LangGraph **zapisuje cały stan** (przypięty do
+  `thread_id`). Druga wiadomość w tej samej rozmowie startuje z pełną historią poprzednich
+  wymian, bez ręcznego przesyłania jej z frontendu.
+
+### Dlaczego LangGraph, a nie coś prostszego
+
+**Alternatywa A — sztywny chain** (`prompt → LLM → koniec`, retrieval zawsze na sztywno):
+najprostsze, ale nie obsłuży pytania multi-hop bez ręcznego wykrywania typu pytania i budowania
+osobnej ścieżki kodu dla każdego przypadku. Klasyczny RAG, nie agent.
+
+**Alternatywa B — `AgentExecutor` z LangChain (deprecated):** starszy sposób robienia tego
+samego (pętla ReAct: myśl → akcja → obserwacja → powtórz), zaimplementowany jako czarna skrzynka
+w jednej klasie — trudno wstrzyknąć własną logikę pomiędzy krokami (limit kroków, checkpointing,
+warunkowe rozgałęzienia). LangChain sam go zdeprecjonował na rzecz LangGraph.
+
+**Alternatywa C — ręczna pętla `while` wołająca LLM:** dałoby się napisać samemu i działałoby.
+Ale LangGraph daje za darmo trzy rzeczy, które inaczej trzeba by napisać i przetestować samemu:
+(1) **checkpointing** per `thread_id` (pamięć konwersacji bez ręcznego zarządzania stanem sesji),
+(2) **wizualizowalną strukturę grafu** (przydatne przy bardziej złożonych agentach z wieloma
+gałęziami), (3) **gotowe prymitywy** (`ToolNode`, `add_messages`) poprawnie obsługujące edge
+case'y (np. równoległe wywołania wielu narzędzi w jednej turze).
+
+Przy dwóch węzłach ta różnica jest kosmetyczna — dałoby się to napisać ręczną pętlą z tym samym
+efektem. LangGraph zaczyna się opłacać, gdy graf rośnie (więcej węzłów, rozgałęzienia, równoległe
+ścieżki, human-in-the-loop) — wybór biblioteki, która się skaluje, zamiast pisania własnej
+infrastruktury pętli agenta, jest uzasadniony niezależnie od aktualnego rozmiaru grafu w Etapie 3.
+
+### Podsumowanie w jednym zdaniu
+
+`ingest` **buduje** bazę wiedzy raz (offline). `search` to **surowy dostęp** do tej bazy (dla
+evalu/debugowania). `agent` to **mózg decyzyjny** — LangGraph daje mu pętlę, w której sam
+decyduje, czy/ile razy/jakim narzędziem sięgnąć do `search`. `voice` to czysto techniczna warstwa
+konwersji audio↔tekst, kompletnie nieświadoma istnienia agenta — łączy je dopiero frontend,
+orkiestrując kolejność wywołań.
