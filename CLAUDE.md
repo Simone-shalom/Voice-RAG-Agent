@@ -29,7 +29,7 @@ Backend hot-reloads via volume mount (`./backend:/app`).
 
 ```bash
 cd backend
-python -m pytest tests/ -v       # 206 tests, all mocked (no real DB/API calls needed)
+python -m pytest tests/ -v       # 223 tests, all mocked (no real DB/API calls needed)
 ```
 
 ## Git conventions
@@ -80,17 +80,17 @@ id UUID, episode_id UUID, start_ts FLOAT, end_ts FLOAT, text TEXT, embedding VEC
 - `semantic`: pgvector cosine similarity (`<=>` operator), `WHERE embedding IS NOT NULL`
 - `bm25`: PostgreSQL `tsvector` / `ts_rank`, GIN index on stored generated column
 - `hybrid`: RRF(semantic, bm25) — fuses **ranks**, not raw scores, k=60
-- `hybrid+rerank`: hybrid → Cohere Rerank API (requires `COHERE_API_KEY`)
+- `hybrid+rerank`: hybrid → Cohere Rerank API (requires `COHERE_API_KEY`; on `GET /search` this raises if unset — no fallback there)
 
 ## LangGraph agent tools
 
-Defined in `backend/app/agent/tools.py` via `make_tools(db)` closure:
+Defined in `backend/app/agent/tools.py` via `make_tools(db, mode="hybrid", sources_sink=None)` closure. `mode` selects which search function `search_transcripts`/`compare_across_episodes` use (Etap 14, selectable in the chat UI); `hybrid+rerank` silently falls back to `hybrid` if `COHERE_API_KEY` is unset (the agent has no clean way to surface a tool error to the user). `sources_sink`, if given, collects every retrieved chunk so `stream_agent_response` can emit them as an SSE `sources` event (deduplicated, capped at `MAX_SOURCES = 8`, projected to `{episode_id, start_ts, end_ts, text}`).
 
 | Tool | Signature | What it does |
 |------|-----------|-------------|
-| `search_transcripts` | `(query: str, limit: int=5)` | hybrid search across all chunks |
+| `search_transcripts` | `(query: str, limit: int=5)` | search across all chunks via the selected mode (limit clamped to 1-20) |
 | `get_context_around_timestamp` | `(episode_id: str, timestamp: float, window_seconds: float=30.0)` | chunks near a timestamp |
-| `compare_across_episodes` | `(query: str, episode_ids: str, limit_per_episode: int=3)` | grouped search per episode |
+| `compare_across_episodes` | `(query: str, episode_ids: str, limit_per_episode: int=3)` | grouped search per episode (limit clamped to 1-20) |
 | `summarise_segment` | `(text: str)` | format segment for LLM analysis |
 
 MAX_STEPS = 6 (step counter guard in graph state). MemorySaver checkpoints per `thread_id`.
@@ -163,7 +163,7 @@ Copy `.env.example` → `.env` (never commit `.env`).
 - **pgvector cosine**: use `<=>` operator for cosine distance; always add `WHERE embedding IS NOT NULL` guard.
 - **RRF**: sum reciprocal **ranks** (1/(k+rank)), not raw similarity scores. Verify with test that puts a chunk in both lists — it should rank first in fused results.
 - **Whisper STT for voice queries**: returns plain `str`, not segment list. Only ingest transcriber returns segments (for timestamp chunking).
-- **Test suite**: 206 tests, all mocked. Never require a running database or real API keys for tests.
+- **Test suite**: 223 tests, all mocked. Never require a running database or real API keys for tests.
 
 ## Ingest commands
 

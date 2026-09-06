@@ -15,12 +15,14 @@ export default function AudioRecorder({ onTranscript }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [vadStatus, setVadStatus] = useState<"idle" | "listening" | "silence">("idle");
   const mediaRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const silenceStartRef = useRef<number | null>(null);
   const speechStartedAtRef = useRef<number | null>(null);
+  const unmountedRef = useRef(false);
 
   function stopVadLoop() {
     if (rafRef.current !== null) {
@@ -78,6 +80,14 @@ export default function AudioRecorder({ onTranscript }: Props) {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (unmountedRef.current) {
+        // Component unmounted while the permission prompt/getUserMedia
+        // call was pending — the mount's own cleanup already ran and
+        // won't run again, so release this stream immediately or it
+        // leaks for the lifetime of the tab.
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       const mr = new MediaRecorder(stream);
       chunksRef.current = [];
       mr.ondataavailable = (e) => chunksRef.current.push(e.data);
@@ -85,6 +95,7 @@ export default function AudioRecorder({ onTranscript }: Props) {
         stopVadLoop();
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
         const form = new FormData();
         form.append("audio", blob, "recording.webm");
         try {
@@ -100,6 +111,7 @@ export default function AudioRecorder({ onTranscript }: Props) {
       };
       mr.start();
       mediaRef.current = mr;
+      streamRef.current = stream;
       setRecording(true);
       setVadStatus("listening");
 
@@ -124,14 +136,30 @@ export default function AudioRecorder({ onTranscript }: Props) {
   }
 
   useEffect(() => {
-    return () => stopVadLoop();
+    unmountedRef.current = false; // guards against React Strict Mode's dev-only mount→cleanup→remount cycle
+    return () => {
+      unmountedRef.current = true;
+      stopVadLoop();
+      // If the component unmounts mid-recording, there's no point uploading
+      // an in-progress clip — detach the normal onstop upload handler before
+      // stopping so it doesn't fire, then release the mic directly.
+      if (mediaRef.current && mediaRef.current.state !== "inactive") {
+        mediaRef.current.onstop = null;
+        mediaRef.current.stop();
+      }
+      mediaRef.current = null;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
   }, []);
 
   return (
     <div className="flex flex-col items-center gap-2">
       <button
         onClick={recording ? stop : start}
-        className={`px-6 py-3 rounded-full font-semibold transition-colors ${
+        aria-pressed={recording}
+        aria-label={recording ? "Stop voice recording" : "Start voice recording"}
+        className={`px-6 py-3 rounded-full font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
           recording
             ? "bg-red-600 hover:bg-red-700 animate-pulse"
             : "bg-indigo-600 hover:bg-indigo-700"
@@ -140,11 +168,15 @@ export default function AudioRecorder({ onTranscript }: Props) {
         {recording ? "Stop Recording" : "Ask with Voice"}
       </button>
       {recording && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500" role="status">
           {vadStatus === "silence" ? "Silence detected — stopping soon…" : "Listening…"}
         </p>
       )}
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && (
+        <p className="text-red-400 text-sm" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

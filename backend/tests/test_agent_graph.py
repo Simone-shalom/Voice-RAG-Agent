@@ -96,3 +96,13 @@ def test_step_limit_prevents_infinite_loop():
         )
 
     assert mock_llm.invoke.call_count <= MAX_STEPS
+
+
+def test_build_graph_forwards_mode_and_sink_to_make_tools():
+    mock_llm = make_mock_llm([AIMessage(content="hello")])
+    sink: list[dict] = []
+    db = make_db()
+    with patch("app.agent.graph.make_tools", return_value=[]) as mock_make_tools:
+        build_graph(db=db, llm=mock_llm, mode="bm25", sources_sink=sink)
+
+    mock_make_tools.assert_called_once_with(db, mode="bm25", sources_sink=sink)

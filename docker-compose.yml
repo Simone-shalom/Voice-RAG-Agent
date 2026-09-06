@@ -34,7 +34,10 @@ services:
     command: sh -c "npm install && npm run dev"
     env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Consumed only by next.config.ts's server-side rewrite proxy, which
+      # runs inside this container — "backend" is the compose service's
+      # internal DNS name, not reachable as "localhost" from here.
+      NEXT_PUBLIC_API_URL: http://backend:8000
     ports:
       - "3000:3000"
     depends_on:

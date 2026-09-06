@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -17,10 +18,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
+AgentSearchMode = Literal["semantic", "bm25", "hybrid", "hybrid+rerank"]
+
 
 class ChatRequest(BaseModel):
     message: str
     thread_id: str
+    mode: AgentSearchMode = "hybrid"
 
 
 class ChatResponse(BaseModel):
@@ -59,6 +63,7 @@ async def chat_stream(request: Request, body: ChatRequest, db: Session = Depends
             message=body.message,
             thread_id=body.thread_id,
             db=db,
+            mode=body.mode,
         ):
             yield chunk
 

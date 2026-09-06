@@ -28,3 +28,26 @@ def test_stream_endpoint_body_contains_done(client):
             json={"message": "hello", "thread_id": "t1"},
         )
     assert b'"type": "done"' in response.content
+
+
+def test_stream_endpoint_forwards_mode(client):
+    async def fake_stream(*args, **kwargs):
+        yield 'data: {"type": "done"}\n\n'
+
+    with patch("app.agent.router.stream_agent_response", side_effect=fake_stream) as mock_stream:
+        client.post(
+            "/agent/chat/stream",
+            json={"message": "hello", "thread_id": "t1", "mode": "bm25"},
+        )
+
+    assert mock_stream.call_args.kwargs.get("mode") == "bm25"
+
+
+def test_stream_endpoint_defaults_mode_to_hybrid(client):
+    async def fake_stream(*args, **kwargs):
+        yield 'data: {"type": "done"}\n\n'
+
+    with patch("app.agent.router.stream_agent_response", side_effect=fake_stream) as mock_stream:
+        client.post("/agent/chat/stream", json={"message": "hello", "thread_id": "t1"})
+
+    assert mock_stream.call_args.kwargs.get("mode") == "hybrid"

@@ -285,3 +285,33 @@ To jest material zrodlowy pod pytania rekrutacyjne typu "dlaczego wybrales X, a 
 **Alternatywy odrzucone:** pozostawienie `except Exception as e: raise HTTPException(400, str(e))` (stan sprzed Etapu 13) — przekazywalo surowa tresc kazdego wyjatku, w tym fragmenty odpowiedzi API zewnetrznych i sciezki systemowe, bezposrednio do klienta.
 
 **Uzasadnienie:** Rozroznienie po typie wyjatku pozwala zachowac uzyteczne komunikaty dla oczekiwanych przypadkow (np. "ANTHROPIC_API_KEY not set", bledny URL rozpoznany przez `httpx.HTTPError`, blad transkrypcji z `openai.APIError`) bez utraty ich czytelnosci, jednoczesnie chroniac przed przypadkowym wyciekiem przy nieoczekiwanych awariach — te trafiaja teraz wylacznie do logow serwera. Sciezka bledow strumieniowanych przez SSE (`/agent/chat/stream`) pozostaje bez zmian (przekazuje surowa tresc bledu w zdarzeniu `error`) — swiadomie pozostawiona poza zakresem etapu, bo jedynym odbiorca tego strumienia jest ten sam klient przegladarki, ktory wyslal zapytanie.
+
+---
+
+## [Etap 14] Watek `sources_sink` + `mode` przez `make_tools -> build_graph -> stream_agent_response` (2026-09-06)
+
+**Decyzja:** Agentowe narzedzia wyszukujace (`search_transcripts`, `get_context_around_timestamp`, `compare_across_episodes`) przyjmuja opcjonalny `sources_sink: list[dict]`, do ktorego dopisuja kazdy pobrany fragment transkryptu; `make_tools`/`build_graph`/`stream_agent_response` przekazuja go dalej lancuchem, a `stream_agent_response` emituje go jako jedno zdarzenie SSE `sources` (odchudzone do 4 pol UI, zdeduplikowane, ograniczone do `MAX_SOURCES = 8`) tuz przed `done`. Analogicznie przekazywany jest `mode` (ktora funkcja wyszukujaca ma uzyc agent), sterowany selectorem w UI.
+
+**Alternatywy odrzucone:** osobny endpoint `/agent/chat/sources` odpytywany po zakonczeniu odpowiedzi (dodatkowy round-trip, ryzyko niespojnosci z tym, co faktycznie wykorzystal agent); parsowanie odpowiedzi LLM w poszukiwaniu cytowan w tekscie (kruche, zalezne od formatu wyjscia modelu).
+
+**Uzasadnienie:** Narzedzia agenta juz pobieraly strukturalne dane (`episode_id`, `start_ts`, `end_ts`, `text`) z hybrid/BM25/semantic search, ale zwracaly LLM-owi wylacznie sformatowany string — cytowania z znacznikami czasu (headline feature projektu) nigdy nie docieraly do frontendu. Zbieranie ich w mutowalnej liscie przekazanej przez closure to najmniejsza zmiana, ktora nie wplywa na to, co widzi LLM (wciaz dostaje tylko sformatowany tekst) ani na istniejace testy (parametry opcjonalne, domyslnie `None`/`"hybrid"`). Krotki `mode` string jest przekazywany zamiast obiektu funkcji, zeby `make_tools` mogl bezpiecznie zbudowac mapowanie mode->funkcja przy kazdym wywolaniu (co zachowuje zgodnosc z istniejacymi testami mockujacymi `app.agent.tools.hybrid_search` na poziomie modulu). `hybrid+rerank` bez skonfigurowanego `COHERE_API_KEY` cicho spada do `hybrid` w tej sciezce (w przeciwienstwie do bezposredniego `GET /search`, ktory jawnie zwraca blad) — agent nie ma jak zakomunikowac uzytkownikowi bledu narzedzia bez zuzycia calego budzetu `MAX_STEPS` na bezowocne retry.
+
+---
+
+## [Etap 14] Odtwarzanie cytowanych fragmentow przez Media Fragments URI (`#t=start,end`) zamiast wlasnego serwowania audio (2026-09-06)
+
+**Decyzja:** `SourcePlayer.tsx` renderuje `<audio src="{episode.source_url}#t=start,end">` gdy odcinek ma zapisany `source_url` (ingest przez URL/RSS); dla plikow wgranych bezposrednio (`source_url` puste) pokazuje tylko tekst "Audio unavailable for uploaded files."
+
+**Alternatywy odrzucone:** trwale przechowywanie przeslanego/pobranego audio po stronie serwera i serwowanie go przez wlasny endpoint (obecnie `ingest_audio`/`ingest_from_url` usuwaja plik tymczasowy zaraz po transkrypcji — dodanie trwalego storage to osobna, wieksza funkcja, poza zakresem etapu skupionego na naprawie istniejacych elementow UI).
+
+**Uzasadnienie:** Media Fragments URI (`#t=`) jest natywnie wspierany przez `<audio>` w Chrome/Firefox bez zadnego JS do seekowania — najtanszy sposob na realne odtwarzanie cytowanego fragmentu bez budowania nowej infrastruktury. Ograniczenie do URL/RSS-owych odcinkow jest uczciwym kompromisem: to one i tak maja zewnetrznie hostowany plik audio, wiec nie wymaga to zadnego nowego przechowywania danych po stronie serwera. Trwale przechowywanie audio z uploadu zostaje odnotowane jako zaleglosc na przyszly etap, jesli pelna playback-dla-wszystkich-zrodel bedzie potrzebna.
+
+---
+
+## [Etap 14] Naprawa `NEXT_PUBLIC_API_URL`: nazwa uslugi compose (`backend`) zamiast `localhost` (2026-09-06)
+
+**Decyzja:** `docker-compose.yml`'s frontend service ustawia `NEXT_PUBLIC_API_URL=http://backend:8000` zamiast `http://localhost:8000`.
+
+**Alternatywy odrzucone:** pozostawienie `localhost:8000` (stan sprzed Etapu 14, w rzeczywistosci niedzialajacy).
+
+**Uzasadnienie:** Proxy Next.js (`rewrites()` w `next.config.ts`) wykonuje sie po stronie serwera, wewnatrz kontenera `frontend` — `localhost` w tym kontekscie oznacza sam kontener, na ktorym nic nie nasluchuje na porcie 8000, wiec kazde wywolanie `/api/*` z prawdziwej przegladarki konczylo sie bledem 500 (zweryfikowane empirycznie: `curl localhost:3000/api/episodes` zwracalo 500 przed ta poprawka, 200 po niej). Byl to blad ukryty od poczatku uzycia docker-compose dla frontendu — poprzednie manualne testy w kolejnych etapach najwyrazniej sprawdzaly dzialanie backendu bezposrednio (`localhost:8000` z hosta, gdzie port jest wystawiony), nie przez rzeczywista sciezke przegladarki (`localhost:3000` -> proxy -> backend). `backend` to nazwa DNS uslugi w sieci compose, rozwiazywalna wylacznie wewnatrz kontenerow — bezpieczna do uzycia tutaj, bo `NEXT_PUBLIC_API_URL` mimo nazwy jest czytana wylacznie w konfiguracji serwera (`next.config.ts`), nigdy w kodzie wysylanym do przegladarki.

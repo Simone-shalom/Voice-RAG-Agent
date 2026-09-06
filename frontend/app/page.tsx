@@ -1,11 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ChatUI from "@/components/ChatUI";
 import FileUploader, { Episode } from "@/components/FileUploader";
 
 export default function Home() {
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [episodesLoaded, setEpisodesLoaded] = useState(false);
+
+  const loadEpisodes = useCallback(async () => {
+    try {
+      const res = await fetch("/api/episodes");
+      if (res.ok) setEpisodes(await res.json());
+    } catch {
+      // backend may not be ready on first render
+    } finally {
+      setEpisodesLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadEpisodes();
+  }, [loadEpisodes]);
 
   return (
     <div className="flex flex-col h-screen">
@@ -14,7 +31,7 @@ export default function Home() {
         {/* spacer matches sidebar width so content centers over chat */}
         <div className="w-64 shrink-0" />
         <div className="flex-1 flex items-center justify-center gap-3 py-3 px-4">
-          <span className="text-xl leading-none">🎙️</span>
+          <span aria-hidden="true" className="text-xl leading-none">🎙️</span>
           <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">
             Voice Knowledge Agent
           </h1>
@@ -32,12 +49,15 @@ export default function Home() {
           <FileUploader
             selectedEpisodeId={selectedEpisode?.id ?? null}
             onSelectEpisode={setSelectedEpisode}
+            episodes={episodes}
+            episodesLoaded={episodesLoaded}
+            onIngested={loadEpisodes}
           />
         </aside>
 
         {/* chat */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          <ChatUI selectedEpisode={selectedEpisode} />
+          <ChatUI selectedEpisode={selectedEpisode} episodes={episodes} />
         </div>
       </div>
     </div>

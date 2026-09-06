@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { friendlyErrorMessage } from "@/lib/errors";
 
 export interface Episode {
   id: string;
   filename: string;
   chunk_count: number;
-  source_url?: string;
+  source_url?: string | null;
 }
 
 interface IngestResult {
@@ -24,30 +25,19 @@ type UploadStatus =
 interface Props {
   selectedEpisodeId: string | null;
   onSelectEpisode: (ep: Episode | null) => void;
+  episodes: Episode[];
+  episodesLoaded: boolean;
+  onIngested: () => void | Promise<void>;
 }
 
-export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Props) {
+export default function FileUploader({ selectedEpisodeId, onSelectEpisode, episodes, episodesLoaded, onIngested }: Props) {
   const [tab, setTab] = useState<"file" | "url" | "rss">("file");
   const [status, setStatus] = useState<UploadStatus>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [rssUrl, setRssUrl] = useState("");
   const [rssLimit, setRssLimit] = useState(5);
-  const [episodes, setEpisodes] = useState<Episode[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    loadEpisodes();
-  }, []);
-
-  async function loadEpisodes() {
-    try {
-      const res = await fetch("/api/episodes");
-      if (res.ok) setEpisodes(await res.json());
-    } catch {
-      // backend may not be ready on first render
-    }
-  }
 
   async function uploadFile(file: File) {
     setStatus({ kind: "uploading", label: "Uploading…" });
@@ -60,13 +50,13 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
     try {
       const res = await fetch("/api/ingest/upload", { method: "POST", body: form });
       clearTimeout(timer);
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await friendlyErrorMessage(res));
       const result: IngestResult = await res.json();
       setStatus({ kind: "done", result });
-      await loadEpisodes();
+      await onIngested();
     } catch (err) {
       clearTimeout(timer);
-      setStatus({ kind: "error", message: String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -80,13 +70,13 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await friendlyErrorMessage(res));
       const result: IngestResult = await res.json();
       setStatus({ kind: "done", result });
       setUrlInput("");
-      await loadEpisodes();
+      await onIngested();
     } catch (err) {
-      setStatus({ kind: "error", message: String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -100,7 +90,7 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, limit: rssLimit }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await friendlyErrorMessage(res));
       const result: { episodes: IngestResult[]; errors: { title: string; error: string }[] } = await res.json();
       const totalChunks = result.episodes.reduce((sum, e) => sum + e.chunk_count, 0);
       if (result.episodes.length === 0 && result.errors.length > 0) {
@@ -126,9 +116,9 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
         });
         setRssUrl("");
       }
-      await loadEpisodes();
+      await onIngested();
     } catch (err) {
-      setStatus({ kind: "error", message: String(err) });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -148,6 +138,14 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
     onSelectEpisode(selectedEpisodeId === ep.id ? null : ep);
   }
 
+  function selectTab(next: "file" | "url" | "rss") {
+    // Never clear an in-flight "uploading" status on tab switch — status also
+    // gates `busy`, which prevents concurrent ingests; clearing it here would
+    // let a switched-to tab start a second upload while the first is still running.
+    setStatus((prev) => (prev.kind === "uploading" ? prev : { kind: "idle" }));
+    setTab(next);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── upload section ── */}
@@ -159,7 +157,8 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
         {/* tab toggle */}
         <div className="flex text-xs rounded-lg overflow-hidden border border-gray-800">
           <button
-            onClick={() => setTab("file")}
+            onClick={() => selectTab("file")}
+            aria-pressed={tab === "file"}
             className={`flex-1 py-1.5 font-medium transition-colors ${
               tab === "file"
                 ? "bg-indigo-600 text-white"
@@ -169,7 +168,8 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
             File
           </button>
           <button
-            onClick={() => setTab("url")}
+            onClick={() => selectTab("url")}
+            aria-pressed={tab === "url"}
             className={`flex-1 py-1.5 font-medium transition-colors ${
               tab === "url"
                 ? "bg-indigo-600 text-white"
@@ -179,7 +179,8 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
             URL
           </button>
           <button
-            onClick={() => setTab("rss")}
+            onClick={() => selectTab("rss")}
+            aria-pressed={tab === "rss"}
             className={`flex-1 py-1.5 font-medium transition-colors ${
               tab === "rss"
                 ? "bg-indigo-600 text-white"
@@ -216,7 +217,7 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
                 e.target.value = "";
               }}
             />
-            <span className="text-xl block mb-1">🎵</span>
+            <span aria-hidden="true" className="text-xl block mb-1">🎵</span>
             <p className="text-xs text-gray-300">
               Drop audio or{" "}
               <span className="text-indigo-400 underline underline-offset-2">browse</span>
@@ -291,7 +292,7 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
         )}
         {status.kind === "done" && (
           <p className="text-xs text-green-400 flex items-center gap-1">
-            <span>✓</span>
+            <span aria-hidden="true">✓</span>
             <span>
               <span className="font-medium">{status.result.filename}</span>
               {" · "}
@@ -310,7 +311,9 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
           Library{episodes.length > 0 ? ` · ${episodes.length}` : ""}
         </p>
 
-        {episodes.length === 0 ? (
+        {!episodesLoaded ? (
+          <p className="text-[11px] text-gray-600 text-center py-2">Loading…</p>
+        ) : episodes.length === 0 ? (
           <p className="text-[11px] text-gray-600 text-center py-2">
             No audio ingested yet.
           </p>
@@ -321,6 +324,7 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
               <button
                 key={ep.id}
                 onClick={() => toggleEpisode(ep)}
+                aria-pressed={selected}
                 title={selected ? "Click to deselect" : "Click to focus queries on this episode"}
                 className={`text-left w-full rounded-lg border px-3 py-2 transition-colors group ${
                   selected
@@ -338,7 +342,9 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode }: Pro
                     {ep.filename}
                   </p>
                   {selected && (
-                    <span className="shrink-0 text-indigo-400 text-[10px] mt-0.5">✓ focused</span>
+                    <span className="shrink-0 text-indigo-400 text-[10px] mt-0.5">
+                      <span aria-hidden="true">✓</span> focused
+                    </span>
                   )}
                 </div>
                 <p className={`text-[10px] mt-0.5 ${selected ? "text-indigo-400/70" : "text-gray-600"}`}>

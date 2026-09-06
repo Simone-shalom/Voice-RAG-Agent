@@ -18,16 +18,18 @@ class AgentState(TypedDict):
     step_count: int
 
 
-def build_graph(db: Session, llm):
+def build_graph(db: Session, llm, mode: str = "hybrid", sources_sink: list[dict] | None = None):
     """
     Build and compile the LangGraph agent graph.
 
     db: SQLAlchemy session (captured in tool closures)
     llm: LangChain chat model (e.g. ChatAnthropic)
+    mode / sources_sink: forwarded to make_tools (see tools.py) so the agent's
+      search tools use the requested search mode and record what was retrieved.
 
     Returns a compiled graph with MemorySaver checkpointing.
     """
-    tools = make_tools(db)
+    tools = make_tools(db, mode=mode, sources_sink=sources_sink)
     llm_with_tools = llm.bind_tools(tools)
     tool_node = ToolNode(tools)
     memory = MemorySaver()

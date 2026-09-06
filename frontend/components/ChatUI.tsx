@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AudioRecorder from "./AudioRecorder";
 import SourcePlayer from "./SourcePlayer";
 import { Episode } from "./FileUploader";
+import { friendlyErrorMessage } from "@/lib/errors";
 
 interface Source {
   episode_id: string;
@@ -19,17 +20,42 @@ interface Message {
   streaming?: boolean;
 }
 
+type SearchMode = "semantic" | "bm25" | "hybrid" | "hybrid+rerank";
+
 interface Props {
   selectedEpisode: Episode | null;
+  episodes: Episode[];
 }
 
-export default function ChatUI({ selectedEpisode }: Props) {
+const SEARCH_MODES: { value: SearchMode; label: string }[] = [
+  { value: "semantic", label: "Semantic" },
+  { value: "bm25", label: "BM25" },
+  { value: "hybrid", label: "Hybrid" },
+  { value: "hybrid+rerank", label: "Hybrid + Rerank" },
+];
+
+export default function ChatUI({ selectedEpisode, episodes }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<SearchMode>("hybrid");
   const threadId = useRef(crypto.randomUUID());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const episodeById = useMemo(() => {
+    const map: Record<string, Episode> = {};
+    for (const ep of episodes) map[ep.id] = ep;
+    return map;
+  }, [episodes]);
+
+  useEffect(() => {
+    return () => {
+      if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
 
   function getAudioCtx(): AudioContext {
     if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
@@ -89,9 +115,9 @@ export default function ChatUI({ selectedEpisode }: Props) {
       const res = await fetch("/api/agent/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messagePayload, thread_id: threadId.current }),
+        body: JSON.stringify({ message: messagePayload, thread_id: threadId.current, mode }),
       });
-      if (!res.ok || !res.body) throw new Error(await res.text());
+      if (!res.ok || !res.body) throw new Error(await friendlyErrorMessage(res));
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -110,7 +136,7 @@ export default function ChatUI({ selectedEpisode }: Props) {
           const line = raw.startsWith("data: ") ? raw.slice(6) : raw;
           if (!line.trim()) continue;
 
-          let event: { type: string; text?: string; data?: string };
+          let event: { type: string; text?: string; data?: string | Source[] };
           try {
             event = JSON.parse(line);
           } catch {
@@ -124,13 +150,23 @@ export default function ChatUI({ selectedEpisode }: Props) {
               if (last?.role === "assistant") {
                 next[next.length - 1] = {
                   ...last,
-                  text: last.text + (event.text ?? ""),
+                  text: last.text + ((event.text as string) ?? ""),
                 };
               }
               return next;
             });
-          } else if (event.type === "audio" && event.data) {
+          } else if (event.type === "audio" && typeof event.data === "string") {
             enqueueAudioChunk(event.data);
+          } else if (event.type === "sources" && Array.isArray(event.data)) {
+            const sources = event.data;
+            setMessages((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === "assistant") {
+                next[next.length - 1] = { ...last, sources };
+              }
+              return next;
+            });
           } else if (event.type === "error") {
             setMessages((prev) => {
               const next = [...prev];
@@ -160,13 +196,14 @@ export default function ChatUI({ selectedEpisode }: Props) {
         return next;
       });
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       setMessages((prev) => {
         const next = [...prev];
         const last = next[next.length - 1];
         if (last?.role === "assistant") {
-          next[next.length - 1] = { ...last, text: `Error: ${err}`, streaming: false };
+          next[next.length - 1] = { ...last, text: last.text || `Error: ${message}`, streaming: false };
         } else {
-          next.push({ role: "assistant", text: `Error: ${err}` });
+          next.push({ role: "assistant", text: `Error: ${message}` });
         }
         return next;
       });
@@ -193,6 +230,25 @@ export default function ChatUI({ selectedEpisode }: Props) {
         </div>
       )}
 
+      {/* search mode selector */}
+      <div className="shrink-0 px-4 pt-3 flex items-center gap-2">
+        <label htmlFor="search-mode" className="text-[10px] uppercase tracking-widest text-gray-500">
+          Search mode
+        </label>
+        <select
+          id="search-mode"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as SearchMode)}
+          className="bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-indigo-500"
+        >
+          {SEARCH_MODES.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* messages */}
       <div className="flex-1 overflow-y-auto space-y-4 p-4">
         {messages.length === 0 && !loading && (
@@ -211,6 +267,8 @@ export default function ChatUI({ selectedEpisode }: Props) {
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
+              aria-live={m.role === "assistant" && m.streaming ? "off" : "polite"}
+              aria-atomic="true"
               className={`max-w-prose rounded-2xl px-4 py-3 text-sm ${
                 m.role === "user"
                   ? "bg-indigo-600 text-white"
@@ -220,10 +278,13 @@ export default function ChatUI({ selectedEpisode }: Props) {
               <p className="whitespace-pre-wrap">
                 {m.text}
                 {m.streaming && (
-                  <span className="inline-block w-1.5 h-4 ml-0.5 bg-gray-400 animate-pulse align-middle" />
+                  <span
+                    aria-hidden="true"
+                    className="inline-block w-1.5 h-4 ml-0.5 bg-gray-400 animate-pulse align-middle"
+                  />
                 )}
               </p>
-              {m.sources && <SourcePlayer sources={m.sources} />}
+              {m.sources && <SourcePlayer sources={m.sources} episodeById={episodeById} />}
             </div>
           </div>
         ))}
@@ -248,7 +309,7 @@ export default function ChatUI({ selectedEpisode }: Props) {
           <button
             onClick={() => sendMessage(input)}
             disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             Send
           </button>
