@@ -2,6 +2,8 @@
 
 Ask questions about your podcast/lecture library — by voice or text — and get spoken answers with timestamp citations you can click to jump to the exact moment in the source recording.
 
+📘 **[Project walkthrough (interactive)](https://claude.ai/code/artifact/36785123-1034-4248-9c00-0b886d62faf9)** — the architecture below, step by step, with mock data at every stage, why LangGraph exists, the full MCP-vs-agent split, and a with/without-LangGraph comparison. Private artifact — open it signed into the account that created it.
+
 ---
 
 ## Architecture
