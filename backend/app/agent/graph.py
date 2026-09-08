@@ -12,6 +12,17 @@ from .tools import make_tools
 
 MAX_STEPS = 6
 
+# Shared across every build_graph() call — both /agent/chat and
+# /agent/chat/stream call build_graph() fresh per HTTP request (a new db
+# session and sources_sink each time), so a MemorySaver() created *inside*
+# build_graph() would never see the same thread_id twice: every message
+# would start from an empty checkpoint regardless of thread_id, and the
+# whole point of checkpointing (multi-turn memory) would silently do
+# nothing. This module-level instance is what actually ties thread_id to
+# accumulated conversation state across requests. (In-memory only — state
+# is lost on process restart; a persistent checkpointer is future scope.)
+_CHECKPOINTER = MemorySaver()
+
 
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -32,7 +43,6 @@ def build_graph(db: Session, llm, mode: str = "hybrid", sources_sink: list[dict]
     tools = make_tools(db, mode=mode, sources_sink=sources_sink)
     llm_with_tools = llm.bind_tools(tools)
     tool_node = ToolNode(tools)
-    memory = MemorySaver()
 
     def agent_node(state: AgentState, config: RunnableConfig) -> dict:
         response = llm_with_tools.invoke(state["messages"])
@@ -56,4 +66,4 @@ def build_graph(db: Session, llm, mode: str = "hybrid", sources_sink: list[dict]
     graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
     graph.add_edge("tools", "agent")
 
-    return graph.compile(checkpointer=memory)
+    return graph.compile(checkpointer=_CHECKPOINTER)

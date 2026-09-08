@@ -98,6 +98,42 @@ def test_step_limit_prevents_infinite_loop():
     assert mock_llm.invoke.call_count <= MAX_STEPS
 
 
+def test_thread_id_preserves_conversation_across_separate_build_graph_calls():
+    """
+    Regression test: both /agent/chat and /agent/chat/stream call
+    build_graph() fresh on every HTTP request. A MemorySaver() created
+    *inside* build_graph() would be a brand new, empty checkpoint store
+    each time — thread_id would tie to nothing, and every message would
+    be processed with zero memory of earlier turns regardless of
+    thread_id. Confirmed live: a follow-up question referencing "he"
+    from a prior answer got "I need more context, who is 'he'?" with the
+    same thread_id. Simulates two separate requests (two separate
+    build_graph() calls, like two separate HTTP requests) sharing a
+    thread_id.
+    """
+    mock_llm = make_mock_llm([
+        AIMessage(content="Patrick O'Neill works at CASIS."),
+        AIMessage(content="CASIS manages the ISS National Lab."),
+    ])
+
+    graph1 = build_graph(db=make_db(), llm=mock_llm)
+    graph1.invoke(
+        {"messages": [HumanMessage(content="Who is Patrick O'Neill?")], "step_count": 0},
+        config={"configurable": {"thread_id": "shared-thread"}},
+    )
+
+    graph2 = build_graph(db=make_db(), llm=mock_llm)
+    result = graph2.invoke(
+        {"messages": [HumanMessage(content="What organization does he work for?")], "step_count": 0},
+        config={"configurable": {"thread_id": "shared-thread"}},
+    )
+
+    contents = [m.content for m in result["messages"]]
+    assert "Who is Patrick O'Neill?" in contents
+    assert "Patrick O'Neill works at CASIS." in contents
+    assert contents[-1] == "CASIS manages the ISS National Lab."
+
+
 def test_build_graph_forwards_mode_and_sink_to_make_tools():
     mock_llm = make_mock_llm([AIMessage(content="hello")])
     sink: list[dict] = []
