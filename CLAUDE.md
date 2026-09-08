@@ -30,7 +30,12 @@ Backend hot-reloads via volume mount (`./backend:/app`).
 ```bash
 cd backend
 python -m pytest tests/ -v       # 244 tests, all mocked (no real DB/API calls needed)
+
+cd frontend
+npm test                         # vitest — component tests (jsdom), 7 tests
 ```
+
+**Frontend test stack**: vitest 2.x + `@testing-library/react` + jsdom 25.x, pinned below their latest majors — vitest 5/vite 8/jsdom 30/`@testing-library/jest-dom` 7 all require Node ≥22 (`node:util.styleText`, engine ranges) and this project targets Node 20. Config: `vitest.config.ts`, `vitest.setup.ts` (stubs `AudioContext`, since jsdom doesn't implement Web Audio and `ChatUI` creates one synchronously on every send). Use `@testing-library/user-event`, not raw `dispatchEvent`, to drive controlled inputs — React's value tracker silently ignores a bare `input.value = x; dispatchEvent(new Event("input"))`.
 
 ## Git conventions
 

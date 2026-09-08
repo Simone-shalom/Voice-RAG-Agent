@@ -22,9 +22,18 @@ interface Message {
 
 type SearchMode = "semantic" | "bm25" | "hybrid" | "hybrid+rerank";
 
+interface ThreadMessage {
+  role: "user" | "assistant";
+  text: string;
+  sources?: Source[] | null;
+  created_at: string;
+}
+
 interface Props {
   selectedEpisode: Episode | null;
   episodes: Episode[];
+  threadId: string;
+  onThreadUpdated?: () => void;
 }
 
 const SEARCH_MODES: { value: SearchMode; label: string }[] = [
@@ -34,12 +43,11 @@ const SEARCH_MODES: { value: SearchMode; label: string }[] = [
   { value: "hybrid+rerank", label: "Hybrid + Rerank" },
 ];
 
-export default function ChatUI({ selectedEpisode, episodes }: Props) {
+export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUpdated }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<SearchMode>("hybrid");
-  const threadId = useRef(crypto.randomUUID());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
@@ -57,6 +65,34 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
       }
     };
   }, []);
+
+  // Loads the selected conversation's history whenever threadId changes —
+  // covers both "switch to an older thread" (GET succeeds, populate
+  // messages) and "start a new chat" (thread doesn't exist server-side
+  // yet, GET 404s, so just clear to empty) through one code path.
+  useEffect(() => {
+    let ignore = false;
+    setMessages([]);
+    fetch(`/api/agent/threads/${threadId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { messages: ThreadMessage[] } | null) => {
+        if (ignore || !data) return;
+        setMessages(
+          data.messages.map((m) => ({
+            role: m.role,
+            text: m.text,
+            sources: m.sources ?? undefined,
+          }))
+        );
+      })
+      .catch(() => {
+        // thread history is a convenience — an unreachable backend just
+        // leaves this conversation starting empty, same as a new chat
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [threadId]);
 
   // Re-runs on every token appended during streaming (each one is a new
   // `messages` array), so the view tracks the bottom live as text grows.
@@ -126,7 +162,7 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
       const res = await fetch("/api/agent/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messagePayload, thread_id: threadId.current, mode }),
+        body: JSON.stringify({ message: messagePayload, thread_id: threadId, mode }),
       });
       if (!res.ok || !res.body) throw new Error(await friendlyErrorMessage(res));
 
@@ -220,6 +256,7 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
       });
     } finally {
       setLoading(false);
+      onThreadUpdated?.();
     }
   }
 
