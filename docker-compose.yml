@@ -41,6 +41,11 @@ services:
       # runs inside this container — "backend" is the compose service's
       # internal DNS name, not reachable as "localhost" from here.
       NEXT_PUBLIC_API_URL: http://backend:8000
+      # Docker Desktop on Windows doesn't reliably forward inotify events
+      # for host-edited files across the bind mount to webpack's watcher —
+      # edits silently never trigger a recompile. Polling works regardless
+      # of how the mount delivers change notifications.
+      WATCHPACK_POLLING: "true"
     ports:
       - "3000:3000"
     depends_on:
