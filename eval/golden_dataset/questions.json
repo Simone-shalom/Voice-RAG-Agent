@@ -1,92 +1,50 @@
 [
   {
     "id": "q01",
-    "question": "What is the main argument the host makes about AI replacing knowledge workers?",
-    "expected_topics": ["AI", "knowledge workers", "automation", "employment"],
+    "question": "Which NASA podcast episode discusses the ISS National Lab program, and who hosts it?",
+    "expected_topics": ["Houston We Have a Podcast", "episode 435", "National Lab 15", "Gary Jordan", "Patrick O'Neill"],
     "difficulty": "simple"
   },
   {
     "id": "q02",
-    "question": "How does the guest define retrieval-augmented generation?",
-    "expected_topics": ["retrieval", "augmented generation", "RAG", "definition"],
+    "question": "Why does the guest say the ISS National Lab is different from the Department of Energy's national labs on Earth?",
+    "expected_topics": ["ISS National Lab", "Department of Energy", "microgravity", "off our planet"],
     "difficulty": "simple"
   },
   {
     "id": "q03",
-    "question": "What specific benchmark numbers are mentioned when comparing GPT-4 to Claude?",
-    "expected_topics": ["GPT-4", "Claude", "benchmark", "comparison"],
+    "question": "What does a researcher need before they can send an investigation to the ISS National Lab?",
+    "expected_topics": ["flight certified hardware", "investigation", "launch"],
     "difficulty": "simple"
   },
   {
     "id": "q04",
-    "question": "What three steps does the speaker recommend for prompt engineering?",
-    "expected_topics": ["prompt engineering", "steps", "technique"],
+    "question": "What is the Orbital Edge accelerator program, and how many companies were selected in its most recent cohort?",
+    "expected_topics": ["Orbital Edge accelerator", "eight companies", "second year"],
     "difficulty": "simple"
   },
   {
     "id": "q05",
-    "question": "What is the speaker's opinion on open-source versus proprietary models?",
-    "expected_topics": ["open-source", "proprietary", "models", "opinion"],
+    "question": "What feeling do astronauts often express about supporting research on the space station, according to the guest?",
+    "expected_topics": ["astronauts", "stewardship", "profound sense"],
     "difficulty": "simple"
   },
   {
     "id": "q06",
-    "question": "How does the discussion of vector databases in episode 1 compare to what is said in episode 2?",
-    "expected_topics": ["vector databases", "comparison", "episodes"],
-    "difficulty": "comparison"
+    "question": "What challenge does the ISS National Lab face when working with commercial partners who are new to space, and how does the guest say they try to address it?",
+    "expected_topics": ["nontraditional partners", "commercial", "message", "science", "competition"],
+    "difficulty": "multi_hop"
   },
   {
     "id": "q07",
-    "question": "Which episode covers fine-tuning most thoroughly, and what method does it recommend?",
-    "expected_topics": ["fine-tuning", "method", "recommendation"],
-    "difficulty": "comparison"
+    "question": "The episode compares the ISS National Lab to a typical Earth-based national lab. What specifically makes the ISS version logistically harder for a researcher?",
+    "expected_topics": ["flight certified hardware", "Tetris", "astronaut support", "autonomous platform", "national lab comparison"],
+    "difficulty": "multi_hop"
   },
   {
     "id": "q08",
-    "question": "What do the different guests say about latency requirements for production AI systems?",
-    "expected_topics": ["latency", "production", "requirements"],
-    "difficulty": "comparison"
-  },
-  {
-    "id": "q09",
-    "question": "How has the advice on context window usage changed across episodes?",
-    "expected_topics": ["context window", "advice", "evolution"],
-    "difficulty": "comparison"
-  },
-  {
-    "id": "q10",
-    "question": "What is the common thread between discussions of hallucination mitigation across all episodes?",
-    "expected_topics": ["hallucination", "mitigation", "common thread"],
-    "difficulty": "comparison"
-  },
-  {
-    "id": "q11",
-    "question": "First, find where embeddings are discussed, then explain what the speaker says about chunking strategy and how it affects retrieval quality.",
-    "expected_topics": ["embeddings", "chunking", "retrieval quality"],
-    "difficulty": "multi_hop"
-  },
-  {
-    "id": "q12",
-    "question": "Who is the guest in the episode that covers agents most extensively, and what specific agent framework do they build a demo with?",
-    "expected_topics": ["agent", "guest", "framework", "demo"],
-    "difficulty": "multi_hop"
-  },
-  {
-    "id": "q13",
-    "question": "Find the timestamp where streaming responses are first mentioned and explain the use case described there.",
-    "expected_topics": ["streaming", "timestamp", "use case"],
-    "difficulty": "multi_hop"
-  },
-  {
-    "id": "q14",
-    "question": "The host mentions a specific company's production incident related to LLM output parsing — find that story and summarize what went wrong.",
-    "expected_topics": ["production incident", "LLM", "output parsing", "company"],
-    "difficulty": "multi_hop"
-  },
-  {
-    "id": "q15",
-    "question": "Trace the argument made about model evaluation: where does it start, what evidence is cited, and what conclusion does the speaker reach?",
-    "expected_topics": ["model evaluation", "evidence", "conclusion", "argument"],
+    "question": "Walk through the steps an investigation goes through, from a researcher's idea to actually flying on the space station, based on what's discussed in the episode.",
+    "expected_topics": ["flight certified hardware", "manifest", "astronaut or autonomous platform", "process"],
     "difficulty": "multi_hop"
   }
 ]

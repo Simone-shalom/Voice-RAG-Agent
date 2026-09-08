@@ -59,15 +59,32 @@ python -m eval.evaluate --modes semantic bm25 hybrid hybrid+rerank --output docs
 
 Results are written to `docs/eval_report.md` (markdown table) and `docs/eval_report.json` (raw scores).
 
-**Expected pattern** (based on RAG literature; measure on your own corpus):
+**Measured** on one real episode of NASA's "Houston We Have a Podcast" (episode 435,
+"National Lab 15" — a ~24min interview about the ISS National Lab program), 8 real
+questions written against the actual transcript, RAG triad scored by Claude Haiku
+(2026-09-08):
+
 | Mode | Context Relevance | Groundedness | Answer Relevance | Composite |
 |------|:-----------------:|:------------:|:----------------:|:---------:|
-| semantic | — | — | — | — |
-| bm25 | — | — | — | — |
-| hybrid | — | — | — | — |
-| hybrid+rerank | — | — | — | — |
+| semantic | 0.812 | 0.906 | 0.938 | 0.885 |
+| bm25 | 0.031 | 0.031 | 0.969 | 0.344 |
+| hybrid | 0.812 | 0.938 | 0.938 | **0.896** |
+| hybrid+rerank | — | — | — | not yet measured (needs `COHERE_API_KEY`) |
 
-Run `python -m eval.evaluate` after ingesting content to populate this table.
+**Why BM25 collapses here**: `bm25_search` (`backend/app/search/bm25.py`) builds its
+query with `plainto_tsquery`, which ANDs together every stemmed word in the question.
+These are 10-20 word natural-language questions ("What challenge does the ISS National
+Lab face when working with commercial partners...") — requiring every one of those
+stems to co-occur in a single ~60-100 word chunk returns **zero rows** for most of them
+(`q01`, `q02`, `q04`-`q08` all retrieved 0 chunks). Answer Relevance stays high anyway
+because `/agent/chat` always searches in `hybrid` mode internally regardless of what
+mode the eval harness asked `/search` for — so the *answer* is still well-grounded, only
+the context fed to the judge for `bm25` is the (empty) BM25-only result. This is exactly
+the paraphrase-query failure mode hybrid search exists to fix (see `DECISIONS.md`,
+Etap 2) — now with real numbers instead of a prediction. Full per-question breakdown:
+[`docs/eval_report.md`](docs/eval_report.md).
+
+Run `python -m eval.evaluate` after ingesting more content to extend this table.
 
 ---
 
@@ -145,6 +162,7 @@ Key choices documented in [`DECISIONS.md`](DECISIONS.md):
 
 - **No production deploy yet**: Docker Compose runs everything locally. The backend is already CORS/proxy-ready for a split-domain deploy (Vercel frontend + Railway backend+postgres, see `DECISIONS.md` Etap 13) — step-by-step instructions are in [`DEPLOYMENT.md`](DEPLOYMENT.md); only hosting accounts and env vars remain.
 - **compare_across_episodes**: the LangGraph tool exists but is not deeply tested for cross-episode queries requiring multiple tool calls against specific episode IDs.
+- **Single-episode golden dataset**: the eval corpus is currently one real episode (kept small deliberately — Whisper transcription is metered API spend). The 8 questions above are real and grounded in that transcript, but don't yet exercise `compare_across_episodes`; ingest more episodes and extend `eval/golden_dataset/questions.json` to cover that.
 - **No persistent audio storage for uploads**: `SourcePlayer` can only seek into episodes ingested via URL/RSS (which keep an external `source_url`); directly-uploaded files are transcribed and discarded, so their citations show text only, no jump-to-timestamp playback.
 
 ---

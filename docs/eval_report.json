@@ -1,0 +1,337 @@
+{
+  "timestamp": "2026-09-08T19:35:12Z",
+  "summary": {
+    "semantic": {
+      "context_relevance": 0.8125,
+      "groundedness": 0.9062,
+      "answer_relevance": 0.9375,
+      "composite": 0.8854
+    },
+    "bm25": {
+      "context_relevance": 0.0312,
+      "groundedness": 0.0312,
+      "answer_relevance": 0.9688,
+      "composite": 0.3437
+    },
+    "hybrid": {
+      "context_relevance": 0.8125,
+      "groundedness": 0.9375,
+      "answer_relevance": 0.9375,
+      "composite": 0.8958
+    }
+  },
+  "results": [
+    {
+      "question": "Which NASA podcast episode discusses the ISS National Lab program, and who hosts it?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Based on the search results, I found the episode! \n\n**Episode:** Houston, we have a podcast - Episode 435: \"National Lab 15\"\n\n**Host:** Gary Jordan\n\nThe episode celebrates 15 years of the Center for the Advancement of Science in Space (CASIS) managing the International Space Station U.S. National Laboratory. The guest is Patrick O'Neill, public affairs and outreach lead of the ISS National Laboratory. The episode discusses the origins of the ISS National Lab (which was designated as a national laboratory in 2005), its accomplishments over the years, and what's planned for the future, including economic growth, scientific advancement, and inspiring the next generation of researchers and explorers.",
+      "scores": {
+        "context_relevance": 1.0,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q01",
+      "difficulty": "simple"
+    },
+    {
+      "question": "Which NASA podcast episode discusses the ISS National Lab program, and who hosts it?",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the search results, I found the episode! \n\n**Episode:** Houston We Have a Podcast - Episode 435: \"National Lab 15\"\n\n**Host:** Gary Jordan\n\n**Guest:** Patrick O'Neill, Public Affairs and Outreach Lead of the ISS National Laboratory\n\nThis episode discusses the 15-year celebration of the Center for the Advancement of Science in Space (CASIS) managing the International Space Station U.S. National Laboratory. The episode covers the history of the ISS National Lab, which was designated as a national laboratory by Congress in 2005, and highlights its accomplishments in advancing science, supporting economic growth, and inspiring the next generation of researchers and explorers.",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q01",
+      "difficulty": "simple"
+    },
+    {
+      "question": "Which NASA podcast episode discusses the ISS National Lab program, and who hosts it?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Based on the search results, I found the episode you're looking for:\n\n**Episode:** \"Houston, We Have a Podcast\" - **Episode 435: National Lab 15**\n\n**Host:** **Gary Jordan**\n\nThis episode celebrates the 15th anniversary of the Center for the Advancement of Science in Space (CASIS) managing the International Space Station U.S. National Laboratory. The guest on this episode is **Patrick O'Neill**, public affairs and outreach lead of the ISS National Laboratory.\n\nThe episode explores the beginnings of the ISS National Lab, its accomplishments over the years, and discusses its future direction. CASIS was designated to manage the ISS National Laboratory through a cooperative agreement with NASA, which was officially established as a national laboratory by Congress in 2005.",
+      "scores": {
+        "context_relevance": 1.0,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q01",
+      "difficulty": "simple"
+    },
+    {
+      "question": "Why does the guest say the ISS National Lab is different from the Department of Energy's national labs on Earth?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Based on the transcript, the guest explains several key differences between the ISS National Lab and the Department of Energy's national labs on Earth:\n\n1. **Location and Microgravity**: The ISS National Lab is unique because it's located off the planet in space, not on Earth. It's the only U.S. National Lab that offers a microgravity environment, which is fundamentally different from ground-based facilities.\n\n2. **Flight-Certified Hardware Requirement**: Unlike Earth-based national labs, researchers who want to use the ISS National Lab must launch their investigations in flight-certified hardware, which is much more challenging and complex than typical laboratory setups.\n\n3. **Logistics and Packing Constraints**: Investigations must be carefully packaged alongside other investigations on the same launch vehicle - it's like \"Tetris,\" as the guest describes it - meaning researchers have to work within strict spatial and payload limitations.\n\n4. **Researcher Access**: Earth-based national labs allow researchers to go there physically and work hands-on with the facilities. With the ISS National Lab, researchers **cannot** go to the facility themselves. Instead, CASIS (Center for the Advancement of Science in Space) works with companies that have flight-certified hardware and coordinates with astronauts to perform the investigations on their behalf.\n\n5. **Support Infrastructure**: The ISS National Lab's differentiating factor is that it handles much of the complexity for researchers - working with flight-certified hardware providers and training astronauts to conduct the experiments - so researchers can focus on their science rather than logistics.\n\nThe guest emphasizes this makes it a \"very different, novel environment\" compared to traditional Department of Energy national labs, and also \"what makes ours so doggone cool.\"",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q02",
+      "difficulty": "simple"
+    },
+    {
+      "question": "Why does the guest say the ISS National Lab is different from the Department of Energy's national labs on Earth?",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the search results, the guest explains several key differences between the ISS National Lab and the Department of Energy's national labs on Earth:\n\n1. **Location - Off-Planet**: The most fundamental difference is that the ISS National Lab is located in space, off the planet, which \"really separates things from the ability to leverage this.\"\n\n2. **Flight-Certified Hardware Requirement**: To launch an investigation to the ISS National Lab, researchers must use flight-certified hardware, which is \"difficult in and of itself because you don't have that in a normal laboratory setting.\" This is a major barrier that doesn't exist with Earth-based national labs.\n\n3. **Logistical Constraints**: Once hardware is flight-certified, researchers face \"Tetris\" logistics challenges - their investigation must fit alongside many other investigations launching to the space station simultaneously.\n\n4. **Remote Operations**: Researchers cannot physically go to the ISS National Lab and work on their investigations themselves. Instead, they must rely on visiting astronauts or autonomous platforms to conduct the experiments while on station.\n\n5. **Hands-Off Access Model**: Unlike traditional Department of Energy national labs where researchers can visit and directly work with the facilities, the ISS National Lab operates on a \"completely different paradigm\" where researchers cannot physically support their own investigations.\n\n6. **Unique Microgravity Environment**: The guest emphasizes that it's \"the only U.S. National Lab that has that microgravity aspect\" and \"the only National Lab in space.\"\n\nThe guest acknowledges these differences make it more daunting for researchers, but notes that CASIS (the organization managing the ISS National Lab) helps overcome these challenges by working with NASA and dozens of companies that have flight-certified hardware to handle much of the technical complexity for researchers.",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q02",
+      "difficulty": "simple"
+    },
+    {
+      "question": "Why does the guest say the ISS National Lab is different from the Department of Energy's national labs on Earth?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Based on the search results, the guest explains several key differences between the ISS National Lab and the Department of Energy's national labs on Earth:\n\n1. **Location and Environment**: The ISS National Lab is off the planet in space, whereas the Department of Energy national labs are on Earth. The guest emphasizes that being \"off our planet\" is what \"really separates things from the ability to leverage this.\"\n\n2. **Flight Certification Requirements**: To use the ISS National Lab, researchers must launch their investigations in \"flight certified hardware,\" which is \"difficult in and of itself because you don't have that in a normal laboratory setting.\" This is not a requirement for Earth-based labs.\n\n3. **Logistics and \"Tetris\" Factor**: Investigations must be physically integrated alongside other investigations going to the space station, requiring careful coordination like a game of \"Tetris.\"\n\n4. **Remote Operation**: Researchers cannot go to the ISS National Lab themselves. They must rely on astronauts to support and perform the investigation while it's on the station, or use autonomous platforms. In contrast, researchers at Department of Energy national labs can physically access the facilities and work with them hands-on.\n\n5. **Microgravity Aspect**: The guest notes that the ISS National Lab is \"the only U.S. National Lab that has that microgravity aspect\" and \"the only National Lab in space.\"\n\nThe beauty of the ISS National Lab model is that CASIS (Center for the Advancement of Science in Space) works with dozens of companies and NASA to handle much of this complexity for researchers, making it accessible despite these unique challenges.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q02",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What does a researcher need before they can send an investigation to the ISS National Lab?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Based on the transcript, here's what a researcher needs before they can send an investigation to the ISS National Lab:\n\n1. **Flight Certified Hardware**: First and foremost, researchers must have their investigation housed in **flight certified hardware**. This is described as \"difficult in and of itself\" because researchers don't have this type of hardware in a normal laboratory setting.\n\n2. **The ISS National Lab's Support**: The good news is that researchers don't have to handle all this complexity alone. The ISS National Lab (managed by CASIS) works with dozens of companies that already have flight certified hardware. They can take the researcher's concept and put it into this flight-certified engineering vehicle to help send it to space.\n\n3. **Support Plan for On-Station Operations**: Researchers need to have a plan for how their investigation will be supported while on the space station. This includes determining:\n   - Will it be supported by a visiting astronaut?\n   - Will it be placed on an autonomous platform?\n\n4. **Logistical Coordination**: The investigation must be coordinated to fit alongside other investigations that are also traveling to the space station.\n\nIn essence, while researchers need to have flight-certified hardware and a support plan, the ISS National Lab handles much of the complex engineering and logistics to make the process much more manageable than it would be if researchers tried to do it independently.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 0.75
+      },
+      "id": "q03",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What does a researcher need before they can send an investigation to the ISS National Lab?",
+      "mode": "bm25",
+      "num_chunks": 1,
+      "answer": "Based on the transcript information I found, **before researchers can send an investigation to the ISS National Lab, they need the following:**\n\n1. **Flight-Certified Hardware** - This is the first and foremost requirement. The investigation must be housed in flight-certified hardware, which the speaker notes is \"difficult in and of itself because you don't have that in a normal laboratory setting.\"\n\n2. **Operational Support Plan** - Researchers need to determine who will be supporting the investigation on the space station. This includes decisions about:\n   - Whether it will be supported by visiting astronauts, or\n   - Whether it will be placed into an autonomous platform\n\n3. **Understanding of Logistics Constraints** - The investigation must be compatible with the \"Tetris\" situation where multiple investigations are being sent up together on the same launch.\n\nHowever, the good news is that **the ISS National Lab helps researchers with this process**. According to the transcript, CASIS (Center for the Advancement of Science in Space), which manages the ISS National Lab, works to \"take a lot of that hard work out of the equation\" by:\n- Partnering with dozens of companies that have flight-certified hardware to put the researcher's concept into an engineering vehicle\n- Working with astronauts to ensure they understand how to perform the investigation\n- Handling the complex logistics so researchers can focus on their investigation itself\n\nThis is one of the key benefits that distinguishes the ISS National Lab from traditional terrestrial national labs.",
+      "scores": {
+        "context_relevance": 0.25,
+        "groundedness": 0.25,
+        "answer_relevance": 1.0
+      },
+      "id": "q03",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What does a researcher need before they can send an investigation to the ISS National Lab?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Based on the search results, I found the answer! According to the podcast, **before a researcher can send an investigation to the ISS National Lab, they need to have flight certified hardware**.\n\nHere are the key requirements mentioned:\n\n1. **Flight Certified Hardware**: First and foremost, your investigation must be packaged in flight certified hardware. As one expert noted, this is \"difficult in and of itself because you don't have that in a normal laboratory setting.\"\n\n2. **Design Accommodation**: The investigation in its flight certified hardware must be \"lumped alongside a variety of other investigations that are all going to be flying up to the space station\" \u2014 meaning it has to be logistically compatible with other payloads.\n\n3. **Support Plan**: You need to determine how your investigation will be supported on the space station, including:\n   - Will it be supported by visiting astronauts?\n   - Will it be part of an autonomous platform?\n\nThe good news is that the ISS National Lab helps researchers navigate these complex requirements. They work alongside dozens of companies that have flight certified hardware to help take researchers' concepts and put them into engineering vehicles for spaceflight. They also help coordinate with astronauts so they understand how to perform the investigation while on station.",
+      "scores": {
+        "context_relevance": 0.5,
+        "groundedness": 1.0,
+        "answer_relevance": 0.75
+      },
+      "id": "q03",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What is the Orbital Edge accelerator program, and how many companies were selected in its most recent cohort?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Based on the search results, I can provide you with information about the Orbital Edge accelerator program:\n\n## Orbital Edge Accelerator Program\n\n**What it is:** Orbital Edge is a startup accelerator program created by NASA in partnership with venture capitalists. The program is designed to support innovative startups by providing them with:\n- Access to launch projects to the International Space Station (ISS)\n- Private equity funding opportunities\n- Mentorship\n- Business growth support within the space economy\n\n**Most Recent Cohort:** According to the transcript, **eight companies** were selected for the most recent cohort. This was the second year the program had been run, and these eight selected companies would be moving forward with the ability to launch projects to the space station while receiving private equity funding and mentorship.\n\nThe program represents NASA's commitment to commercializing space and building a robust space economy. It builds on the success of previous startup initiatives like the Technology in Space Prize (partnered with MassChallenge and Boeing), which had already helped numerous startups fly their projects to the ISS multiple times.",
+      "scores": {
+        "context_relevance": 1.0,
+        "groundedness": 1.0,
+        "answer_relevance": 0.75
+      },
+      "id": "q04",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What is the Orbital Edge accelerator program, and how many companies were selected in its most recent cohort?",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the search results, I can provide you with information about the Orbital Edge accelerator program:\n\n## Orbital Edge Accelerator Program\n\n**What it is:**\nThe Orbital Edge is a startup accelerator program created by NASA to support innovative companies in developing space-based technologies and business models. The program works with venture capitalists who have equity stakes in the participating companies. It represents NASA's commitment to commercializing space and building a robust space economy.\n\n**Key features:**\n- Provides companies with access to launch projects to the International Space Station (ISS)\n- Offers private equity funding opportunities\n- Provides mentorship and business growth support\n- Aims to help startups succeed in the commercial space sector\n\n**Most Recent Cohort:**\nAccording to the information from the podcast, **eight companies were selected** in the most recent cohort of the Orbital Edge accelerator program. This was described as the second year of the program's operation.\n\nThis initiative builds on NASA's earlier success with other startup acceleration programs, such as the Technology in Space Prize partnership with MassChallenge and Boeing, which had funded dozens of startups to fly projects to the space station.",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 0.75
+      },
+      "id": "q04",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What is the Orbital Edge accelerator program, and how many companies were selected in its most recent cohort?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Based on the search results, I can provide you with information about the Orbital Edge accelerator program:\n\n## Orbital Edge Accelerator Program\n\n**What it is:** The Orbital Edge is a startup accelerator program created by NASA/ISS National Lab in partnership with venture capitalists. The program provides:\n- Opportunities for startups to launch projects to the International Space Station\n- Private equity funding for participating companies\n- Mentorship and business growth support\n- An environment specifically designed to help startups grow in the space industry\n\n**Most Recent Cohort:** According to the transcript, the second cohort of the Orbital Edge accelerator program selected **eight companies**.\n\nThe program was designed to build on the success NASA had experienced working with startups through other mechanisms like the Technology in Space Prize (a partnership with MassChallenge and Boeing that provided up to $500,000 per year in funding). The Orbital Edge represents a more direct approach by NASA to create its own startup accelerator environment, working directly with venture capitalists who have equity stakes in the participating companies.",
+      "scores": {
+        "context_relevance": 1.0,
+        "groundedness": 1.0,
+        "answer_relevance": 0.75
+      },
+      "id": "q04",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What feeling do astronauts often express about supporting research on the space station, according to the guest?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Perfect! I found the answer. According to the guest, astronauts often express **a profound sense of stewardship** when supporting research investigations on the space station.\n\nThe guest specifically states:\n\n> \"In a lot of the conversations I've had with astronauts over the years, and I'm sure that you've had the similar ones, where there is a profound sense of stewardship that they have in being able to support these investigations.\"\n\nThis sense of stewardship drives astronauts to take their role seriously in supporting the research community's work, ensuring that investigations are executed with the highest level of scientific integrity.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q05",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What feeling do astronauts often express about supporting research on the space station, according to the guest?",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the transcript, the guest mentions that **astronauts express a profound sense of stewardship** when supporting research investigations on the space station.\n\nSpecifically, the guest states:\n\n> \"There is a profound sense of stewardship that they have in being able to support these investigations.\"\n\nThe guest explains that this sense of stewardship drives astronauts to approach their work with scientific rigor and integrity. They ensure that investigations are properly engineered and detailed, so that even if an astronaut isn't specialized in the particular field (whether they're pilots, engineers, or specialists), they can still execute the investigation to its fullest capability, thus promoting scientific integrity. The guest characterizes this as astronauts saying: \"prove it as best you can.\"",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q05",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What feeling do astronauts often express about supporting research on the space station, according to the guest?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Perfect! I found the answer. According to the guest, astronauts often express **a profound sense of stewardship** when supporting research on the space station. \n\nThe guest specifically states: \"In a lot of the conversations I've had with astronauts over the years... there is a profound sense of stewardship that they have in being able to support these investigations.\"\n\nThis sense of stewardship motivates astronauts to commit to executing research investigations with the highest level of care and scientific integrity, ensuring they \"prove it as best you can\" and detail every aspect of the work.",
+      "scores": {
+        "context_relevance": 1.0,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q05",
+      "difficulty": "simple"
+    },
+    {
+      "question": "What challenge does the ISS National Lab face when working with commercial partners who are new to space, and how does the guest say they try to address it?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Based on the transcript search results, I can answer your question:\n\n**The Challenge:**\nWhen working with commercial partners who are new to space\u2014particularly nontraditional partners (like Procter & Gamble, Cobra Puma Golf, Adidas, etc.)\u2014the ISS National Lab faces a challenge with **managing how companies communicate about their research**. The guest explains that new commercial partners sometimes focus on the fact that they're doing something novel or different to differentiate themselves from competition, rather than focusing on the actual science and results.\n\n**How They Address It:**\nAccording to Patrick O'Neill, the public affairs and outreach lead of the ISS National Laboratory, they address this challenge by:\n\n1. **Engaging directly with these nontraditional partners** to ensure the message doesn't get lost\n2. **Redirecting focus to the actual results and science** - they want to emphasize what the research accomplished on the space station and how it influenced the company's product design going forward\n3. **Maintaining accuracy and integrity** - they emphasize that \"anything that is being discussed about the space station is done on, you know, on the level and on the facts\"\n\nThe goal is to ensure that the scientific substance and real outcomes of the research take priority over commercial marketing messaging or claims about being \"different from competition.\"",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 0.75,
+        "answer_relevance": 1.0
+      },
+      "id": "q06",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "What challenge does the ISS National Lab face when working with commercial partners who are new to space, and how does the guest say they try to address it?",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the podcast transcript, here's what Patrick O'Neill, the public affairs and outreach lead of the ISS National Laboratory, says about the challenge:\n\n**The Challenge:**\nWhen working with nontraditional (new to space) commercial partners, the ISS National Lab faces difficulty around **managing the balance between marketing and scientific integrity**. Specifically, new commercial partners sometimes want to bring heavy marketing into the equation, whereas NASA needs to ensure that anything sent to the space station has legitimate scientific viability.\n\n**How They Address It:**\nAccording to Patrick, they address this challenge by:\n\n1. **Focusing on Facts and Science**: They emphasize that while companies are welcome to tell unique stories, those stories must be **fact-based** and cannot override the actual research and development (R&D) work being done.\n\n2. **Managing Expectations About Marketing**: They help nontraditional partners understand that while the space station is an incredibly expensive asset for humanity, there are limitations on what can be done from a marketing perspective as a federal institution.\n\nAs Patrick explains: *\"We want to ensure that anything that goes up there has scientific viability. If you want to tell a unique story, you're more than welcome to do so, but it has to be fact-based and it has to be something where that does not override the actual R and D.\"*\n\nThis represents part of the learning curve for managing the ISS National Lab when engaging with new commercial partners unfamiliar with NASA's priorities and requirements.",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q06",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "What challenge does the ISS National Lab face when working with commercial partners who are new to space, and how does the guest say they try to address it?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Based on the podcast transcript, here's what Patrick O'Neill, the public affairs and outreach lead of the ISS National Laboratory, explains:\n\n## The Challenge\n\nWhen working with **nontraditional commercial partners who are new to space**, the ISS National Lab faces a significant challenge: these partners often want to bring **marketing into the equation**. Since NASA is a federal institution with limitations on marketing activities, this creates tension\u2014especially when using the space station, which is an incredibly expensive asset for humanity.\n\n## How They Address It\n\nPatrick O'Neill describes their approach to managing this challenge:\n\n1. **Prioritize Scientific Viability**: They ensure that anything sent to the space station must have legitimate scientific viability, not just marketing value.\n\n2. **Maintain Fact-Based Storytelling**: While partners are welcome to tell a unique story about their work, it must be \"fact-based and it has to be something where that does not override the actual R and D.\"\n\n3. **Focus on Results**: They direct attention to \"the results that derive from what it is that they did in space on that space station and how that is helping to influence their product design in the future.\"\n\n4. **Ensure Scientific Integrity**: They emphasize keeping facts straight and maintaining the level of scientific integrity in all discussions about the space station.\n\nAs O'Neill states, this is \"part of the learning curve of managing the national lab\"\u2014managing how to engage with these nontraditional partners \"to ensure that the message does not get lost, that the science doesn't get lost.\"",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q06",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "The episode compares the ISS National Lab to a typical Earth-based national lab. What specifically makes the ISS version logistically harder for a researcher?",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Based on the search results, the episode explains several specific logistical challenges that make the ISS National Lab harder for researchers compared to Earth-based national labs:\n\n## Key Logistical Challenges for ISS National Lab:\n\n1. **Flight-Certified Hardware Requirement**: Researchers must put their investigations into flight-certified hardware, which is \"difficult in and of itself because you don't have that in a normal laboratory setting.\"\n\n2. **Tetris Problem (Scheduling Constraints)**: The investigation has to be squeezed alongside \"a variety of other investigations that are all going to be flying up to the space station\" \u2013 meaning researchers can't control when and how their equipment is launched.\n\n3. **Support and Execution Uncertainty**: Researchers must work through intermediaries rather than conducting work hands-on. The episode highlights this: \"How is that investigation going to be worked on on the space station? Is it going to be supported by one of the visiting astronauts? Is it going to be something that is put into an autonomous platform?\"\n\n4. **No On-Site Access**: Unlike traditional national labs where researchers can go and work directly with their equipment, researchers cannot physically travel to the ISS to conduct their investigations themselves \u2013 a \"completely different paradigm.\"\n\nThe episode acknowledges this is daunting, but notes that the ISS National Lab mitigates this by working with dozens of companies with flight-certified hardware and coordinating with astronauts to ensure proper execution of investigations.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q07",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "The episode compares the ISS National Lab to a typical Earth-based national lab. What specifically makes the ISS version logistically harder for a researcher?",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the episode transcript, here are the specific logistical challenges that make the ISS National Lab harder for researchers compared to Earth-based national labs:\n\n## Key Logistical Challenges:\n\n1. **Flight-Certified Hardware Requirement**: Unlike Earth-based labs where you can use standard equipment, any investigation going to the ISS must be in flight-certified hardware. This is described as \"difficult in and of itself because you don't have that in a normal laboratory setting.\"\n\n2. **\"Tetris Problem\"**: Your investigation, already packaged in flight-certified hardware, must then fit alongside a variety of other investigations all launching simultaneously to the space station. There's a limited cargo capacity puzzle to solve.\n\n3. **Limited Direct Access**: A researcher cannot simply go to the ISS National Lab to support their own investigation hands-on, unlike traditional national labs. The speaker notes: \"that's a very different, novel environment for you to want to do something in a National Lab setting that you actually don't have the ability to go to and support yourself.\"\n\n4. **Astronaut Dependency**: Someone else must support the investigation on station. This requires coordination with astronauts to ensure they understand how to properly perform the experiment.\n\nThe ISS National Lab partially mitigates these challenges by working with dozens of companies that have flight-certified hardware and by coordinating with astronauts to conduct the research. However, these fundamental constraints remain unique to space-based research compared to traditional Earth-based national laboratories.",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q07",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "The episode compares the ISS National Lab to a typical Earth-based national lab. What specifically makes the ISS version logistically harder for a researcher?",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Based on the search results, here are the specific logistical challenges that make the ISS National Lab harder for researchers compared to Earth-based national labs:\n\n## Key Logistical Challenges:\n\n1. **Flight-Certified Hardware Requirement**: Researchers must put their investigations into flight-certified hardware, which is \"difficult in and of itself because you don't have that in a normal laboratory setting.\" This adds an engineering barrier that doesn't exist for traditional labs.\n\n2. **Packing Constraints (Tetris Problem)**: The investigation must be coordinated as part of what the speaker calls a \"Tetris\" situation\u2014the flight-certified hardware containing the investigation gets packed alongside many other investigations, all going up to the space station together. This creates logistical scheduling and space constraints.\n\n3. **Remote Support Requirements**: Researchers can't simply go to the lab and work on their investigation hands-on. They must decide:\n   - Will an astronaut on station support the investigation?\n   - Or will it run on an autonomous platform?\n   \n   This fundamental shift in how research is conducted\u2014from hands-on to remote/autonomous\u2014is a major logistical difference.\n\n4. **Physical Access Limitation**: Unlike traditional national labs where researchers can \"have your hands on it,\" the ISS National Lab operates under a \"completely different paradigm\" where researchers cannot physically access their equipment or make real-time adjustments.\n\nThe speaker emphasizes that while these logistical hurdles make it \"a very daunting experience\" for researchers, the ISS National Lab helps mitigate this by working with companies that have flight-certified hardware and coordinating with astronauts to support investigations.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 1.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q07",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "Walk through the steps an investigation goes through, from a researcher's idea to actually flying on the space station, based on what's discussed in the episode.",
+      "mode": "semantic",
+      "num_chunks": 5,
+      "answer": "Perfect! Now I have comprehensive information. Let me walk through the complete process:\n\n## The Journey: From Researcher's Idea to Space Station Investigation\n\nBased on the episode discussion, here's how an investigation progresses from initial concept to actually flying on the space station:\n\n### **1. EDUCATION & OUTREACH**\n\nFirst, researchers need to know this opportunity exists. The episode describes early efforts to educate the research community through:\n- Attending conferences and events\n- Meeting with researchers directly to let them know \"there is a space station\" and that they \"can send your research to the space station\"\n- Helping researchers understand the capabilities and facilities available\n- Explaining the unique benefits of the microgravity environment\n\n### **2. PROPOSAL DEVELOPMENT**\n\nOnce researchers are interested, they develop their proposal. This is where it gets unique because:\n- **Flight-Certified Hardware**: Your investigation must be packaged in flight-certified hardware (unlike regular lab experiments). This is \"difficult in and of itself\" since you won't have this in a normal laboratory setting\n- **Funding**: You need to secure funding for your research\u2014through partnerships with agencies like NIH (for tissue chips/biomedical research), NSF (for biotechnology and fluid dynamics), or through commercial pathways\n\n### **3. SCIENTIFIC REVIEW & APPROVAL**\n\nThe investigation must pass scientific scrutiny:\n- Proposals are reviewed for scientific viability and impact\n- The goal is to ensure \"anything that goes up there has scientific viability\"\n- Must meet expectations for fact-based, legitimate research that advances R&D\n\n### **4. LOGISTICS PLANNING**\n\nCritical planning decisions are made regarding how the investigation will operate on station:\n- **Who will support it?** Will it be conducted by visiting astronauts or placed on an autonomous platform?\n- **Procedure development**: Detailed processes and procedures must be created so astronauts\u2014who may be pilots, engineers, or other non-scientists\u2014can successfully execute the investigation\n- As one key principle states: \"Astronaut, prove it as best you can\"\u2014meaning every aspect must be detailed and engineered properly to ensure scientific integrity\n\n### **5. INTEGRATION & SCHEDULING**\n\nYour investigation must be integrated into the manifest:\n- Your flight-certified hardware is \"lumped alongside a variety of other investigations that are all going to be flying up to the space station\"\n- Space and timing must be coordinated with all other scheduled experiments\n\n### **6. ASTRONAUT TRAINING & SUPPORT**\n\nThe selected astronauts receive training to conduct your investigation:\n- Astronauts are trained specifically for your experiment, even if they're not scientists\n- They work closely with your research team to understand procedures\n- There's a \"profound sense of stewardship\" among astronauts to properly support investigations\n\n### **7. LAUNCH & EXECUTION**\n\nThe investigation launches to the space station and is conducted by the astronaut crew or runs autonomously, depending on the mission design.\n\n### **8. DATA COLLECTION & DISSEMINATION**\n\nAfter execution:\n- Results are collected and analyzed\n- Peer-reviewed papers are published (especially for academic research)\n- Scientific knowledge is shared across the research community\n- Commercial applications may be developed from the findings\n\n---\n\n## **Key Differentiators**\n\nWhat makes this process unique compared to traditional lab research:\n\n1. **You don't go with your experiment**: Unlike traditional national labs where you physically access the facility, \"you want to have this research in the microgravity environment, but it doesn't necessarily mean it grants you a ticket to space. You have to hand that over to an astronaut to conduct.\"\n\n2. **NASA handles major costs**: \"The ride up, the ride down, the astronauts supporting your investigation on the space station was assumed by NASA\"\u2014making it accessible to researchers who couldn't otherwise afford space access.\n\n3. **Rigorous engineering requirements**: Everything must be proven and engineered properly since you can't be there to troubleshoot in real-time.\n\nThe speaker notes that \"this whole process\" isn't something you can just walk into casually\u2014it requires coordination, funding, careful planning, and scientific excellence, but the potential returns\u2014from tissue chips to consumer goods to fundamental research breakthroughs\u2014make it worth the effort.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 0.5,
+        "answer_relevance": 1.0
+      },
+      "id": "q08",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "Walk through the steps an investigation goes through, from a researcher's idea to actually flying on the space station, based on what's discussed in the episode.",
+      "mode": "bm25",
+      "num_chunks": 0,
+      "answer": "Based on the episode transcript, here's a comprehensive walkthrough of the steps an investigation goes through, from a researcher's idea to flying on the space station:\n\n## Steps from Researcher's Idea to Space Station\n\n### **Step 1: The Concept Phase**\nA researcher or company comes up with an idea for an investigation that would benefit from a microgravity environment. This could be anything from pharmaceutical research to consumer goods development.\n\n### **Step 2: Outreach & Education**\nThe ISS National Lab team reaches out to the research community through conferences, events, and direct engagement to:\n- Educate researchers that the space station is available as a national lab\n- Explain the benefits of microgravity and the space environment\n- Address concerns about cost (which is often solved since NASA covers the ride up, ride down, and astronaut support as part of the National Lab construct)\n\n### **Step 3: Engineering & Flight Certification**\nOnce a researcher has a viable concept:\n- The ISS National Lab works with companies that have flight-certified hardware\n- The researcher's concept is put into this specialized engineering vehicle\n- The hardware must meet rigorous flight certification requirements (this is noted as being \"difficult in and of itself\")\n\n### **Step 4: Investigation Design & Procedure Development**\n- The researcher works with the ISS National Lab team to detail every aspect of the experiment\n- Procedures are carefully engineered so that astronauts (who may not be scientists\u2014they could be pilots or engineers) can properly execute the investigation\n- This step emphasizes \"scientific integrity\" and ensuring the astronauts are properly trained and supported\n\n### **Step 5: Logistical Coordination (The \"Tetris\" Challenge)**\n- Your investigation gets bundled with multiple other investigations going to the space station\n- The team determines support mechanisms: Will it be supported by a visiting astronaut? Will it go into an autonomous platform?\n- All these investigations must be coordinated for launch\n\n### **Step 6: Mission Planning**\n- NASA and the ISS National Lab coordinate with astronauts to ensure they understand exactly how to perform your investigation on the station\n- Training and procedures are finalized\n\n### **Step 7: Launch**\n- The investigation launches to the International Space Station as part of a cargo flight with other investigations\n\n### **Step 8: On-Station Execution**\n- Astronauts conduct the investigation while in orbit\n- The ISS National Lab provides ongoing support\n\n### **Step 9: Return & Analysis**\n- Results are returned to Earth\n- Researchers analyze the data\n- Academic researchers publish findings in peer-reviewed journals, advancing the broader scientific community\n\n### **Key Enablers Throughout This Process:**\n\n- **Cost Reduction**: The National Lab construct means NASA covers transportation and astronaut support, making it financially feasible for many researchers\n- **Partnership Network**: The ISS National Lab works with dozens of companies with flight-certified hardware to handle the engineering challenges\n- **Variety of Funding**: Partnerships with agencies like NIH and NSF fund fundamental research projects (~100 projects total)\n- **Bridge Between Traditional & Non-Traditional Research**: The process works for both traditional pharmaceutical research and novel applications (consumer goods, sports equipment, etc.)\n\nThe speaker emphasizes that while it may seem \"daunting,\" the National Lab system actually simplifies this process by handling the complex engineering, certification, and coordination work so researchers can focus on their science.",
+      "scores": {
+        "context_relevance": 0.0,
+        "groundedness": 0.0,
+        "answer_relevance": 1.0
+      },
+      "id": "q08",
+      "difficulty": "multi_hop"
+    },
+    {
+      "question": "Walk through the steps an investigation goes through, from a researcher's idea to actually flying on the space station, based on what's discussed in the episode.",
+      "mode": "hybrid",
+      "num_chunks": 5,
+      "answer": "Perfect! Now I have comprehensive information about the process. Let me compile this into a clear step-by-step walkthrough.\n\nBased on the episode discussion, here's how an investigation progresses from a researcher's initial idea to actually flying on the space station:\n\n## Step 1: Researcher Has an Idea\nA researcher or company conceives of an investigation that could benefit from microgravity or the unique space environment. This could be fundamental academic research, pharmaceutical development, materials science, or even consumer product innovation.\n\n## Step 2: Outreach and Education\nThe ISS National Lab conducts extensive outreach to make researchers aware that:\n- The space station exists and is accessible to them\n- They can send their research to the space station\n- NASA covers the major costs (ride up, ride down, and astronaut support) through the National Lab concept\n\nAs the speaker notes, \"It took a couple of years, I think, for people to really understand the capabilities of station, the facilities that were available, and then ultimately, the benefits of why you would want to do something in space.\"\n\n## Step 3: Proposal and Evaluation\nIf the research has scientific viability, it goes through an evaluation process. The speaker emphasizes that \"it has to be something where that does not override the actual R and D\" \u2014 marketing considerations cannot compromise scientific integrity. They also work with government funding partners (like NIH and NSF) for fundamental research projects.\n\n## Step 4: Hardware Development and Certification\nThis is a critical and unique challenge. The investigation must be placed into **flight-certified hardware** \u2014 specialized equipment designed specifically for space operations. As the speaker explains:\n\n> \"If you want to launch an investigation to this national laboratory that is off our planet for our planet, you have to launch it in flight certified hardware. That's difficult in and of itself because you don't have that in a normal laboratory setting.\"\n\nThe ISS National Lab partners with dozens of companies that already have flight-certified hardware platforms to accommodate the investigation.\n\n## Step 5: Payload Integration and Logistics (\"Tetris\")\nThe investigation, now in certified hardware, must be coordinated with all the other investigations being launched on upcoming missions. The speaker uses the term \"Tetris\" to describe fitting all these investigations together logistically for specific launch windows.\n\n## Step 6: Determine Support Method\nThe research team and NASA must determine **how** the investigation will be supported on the space station:\n- Will a visiting astronaut conduct it?\n- Will it run on an autonomous platform?\n- What are the specific procedures and requirements?\n\n## Step 7: Procedure Development with Astronauts\nHere's a crucial point: just because you've designed the experiment doesn't mean an astronaut will automatically know how to conduct it. The research team must work closely with the astronauts to:\n- Create detailed procedures they can follow\n- Engineer the process so that non-specialist astronauts (pilots, engineers, not necessarily scientists) can execute it successfully\n- Ensure scientific integrity in the execution\n\nAs the speaker states: \"You have to hand that over to an astronaut to conduct, come up with processes, procedures for them to be able to successfully conduct it.\"\n\n## Step 8: Training\nThe astronauts assigned to support the investigation receive training on how to properly conduct it, even if they're not scientists.\n\n## Step 9: Launch\nThe investigation, now in certified hardware and fully prepared, launches to the space station aboard a cargo vehicle or crewed mission.\n\n## Step 10: On-Station Execution\nThe astronauts conduct the investigation according to the procedures developed with the research team, with support from mission control.\n\n## Step 11: Data Return and Analysis\nResults and materials are returned to Earth for analysis and publication in peer-reviewed journals, contributing to the broader scientific community's knowledge.\n\n**The Key Differentiator**: Unlike traditional national labs where researchers have hands-on access, this space-based national lab requires researchers to surrender direct control and trust NASA and the astronauts to execute their work. This is why the entire process \u2014 from procedures to training \u2014 is so meticulously designed to ensure scientific integrity.",
+      "scores": {
+        "context_relevance": 0.75,
+        "groundedness": 0.5,
+        "answer_relevance": 1.0
+      },
+      "id": "q08",
+      "difficulty": "multi_hop"
+    }
+  ]
+}
