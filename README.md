@@ -178,7 +178,7 @@ backend/           FastAPI app (Python 3.12)
     voice/         STT (Whisper), TTS (ElevenLabs)
     episodes/      list/get episodes and their chunks
     db/            SQLAlchemy models, session, init_db
-  tests/           223 pytest tests, all mocked (no real DB/API calls)
+  tests/           225 pytest tests, all mocked (no real DB/API calls)
 
 eval/              RAG eval harness
   scorer.py        RAGTriadScorer (LLM-as-judge)

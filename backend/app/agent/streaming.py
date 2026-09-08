@@ -21,6 +21,25 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
+def _extract_text(content) -> str:
+    """
+    Anthropic streaming chunks (langchain-anthropic 1.x / langchain-core 1.x)
+    carry `.content` as a list of content blocks — [{"type": "text", "text":
+    "...", "index": 0}, ...] — interleaved with non-text blocks (tool_use,
+    input_json_delta) during a tool-calling turn, not a plain string. A bare
+    `isinstance(content, str)` check drops every chunk silently.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
+
+
 async def stream_agent_response(
     message: str,
     thread_id: str,
@@ -66,8 +85,8 @@ async def stream_agent_response(
         ):
             if event["event"] != "on_chat_model_stream":
                 continue
-            token = event["data"]["chunk"].content
-            if not isinstance(token, str) or not token:
+            token = _extract_text(event["data"]["chunk"].content)
+            if not token:
                 continue
 
             yield _sse({"type": "token", "text": token})

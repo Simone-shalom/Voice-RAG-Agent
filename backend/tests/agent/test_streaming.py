@@ -8,9 +8,15 @@ from app.agent.streaming import stream_agent_response
 
 
 def _make_token_event(text: str) -> dict:
+    """
+    Mocks the real Anthropic streaming shape (langchain-anthropic 1.x /
+    langchain-core 1.x): `.content` is a list of content blocks, not a
+    plain string. Verified against a live API call — see
+    app.agent.streaming._extract_text's docstring for why this matters.
+    """
     return {
         "event": "on_chat_model_stream",
-        "data": {"chunk": MagicMock(content=text)},
+        "data": {"chunk": MagicMock(content=[{"type": "text", "text": text, "index": 0}])},
     }
 
 
@@ -89,6 +95,42 @@ async def test_audio_event_base64_encoded():
     assert len(audio_events) >= 1
     decoded = base64.b64decode(audio_events[0]["data"])
     assert decoded == fake_mp3
+
+
+@pytest.mark.asyncio
+async def test_ignores_tool_use_blocks_interleaved_with_text():
+    """
+    Regression test for the real bug: a tool-calling turn streams chunks
+    like [{"type": "tool_use", ...}] and [{"type": "input_json_delta",
+    "partial_json": "..."}] interleaved with [{"type": "text", "text":
+    "..."}] blocks (and empty-list chunks at turn boundaries). Only the
+    text blocks should become "token" events.
+    """
+    async def fake_stream(*args, **kwargs):
+        yield {"event": "on_chat_model_stream", "data": {"chunk": MagicMock(content=[])}}
+        yield {"event": "on_chat_model_stream", "data": {"chunk": MagicMock(
+            content=[{"id": "toolu_1", "input": {}, "name": "search_transcripts", "type": "tool_use"}]
+        )}}
+        yield {"event": "on_chat_model_stream", "data": {"chunk": MagicMock(
+            content=[{"partial_json": '{"query": "x"}', "type": "input_json_delta", "index": 1}]
+        )}}
+        yield _make_token_event("Real answer text.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    with patch("app.agent.streaming.build_graph", return_value=mock_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        items = await _collect(
+            stream_agent_response("hi", "t1", db=MagicMock())
+        )
+
+    token_events = [i for i in items if i["type"] == "token"]
+    assert len(token_events) == 1
+    assert token_events[0]["text"] == "Real answer text."
 
 
 @pytest.mark.asyncio
