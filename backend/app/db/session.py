@@ -35,6 +35,17 @@ def init_db(engine_):
 
     with engine_.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+
+    # Must run after the extension exists (Vector columns need it) and before
+    # the ALTER/INDEX below (both target the `chunks` table this creates) —
+    # on a brand-new database `chunks` doesn't exist yet, so those would fail
+    # with psycopg.errors.UndefinedTable if run first. Only ever caught this
+    # against a fresh DB (e.g. a first production deploy); local dev DBs keep
+    # `chunks` around from earlier runs, which masked the ordering bug.
+    Base.metadata.create_all(bind=engine_)
+
+    with engine_.connect() as conn:
         conn.execute(
             text(
                 """
@@ -60,4 +71,3 @@ def init_db(engine_):
             )
         )
         conn.commit()
-    Base.metadata.create_all(bind=engine_)
