@@ -17,42 +17,62 @@ fail against it. Instead:
 
 1. New Project → **Deploy a Docker Image**.
 2. Image: `pgvector/pgvector:pg16` (same image `docker-compose.yml` already uses locally).
-3. Set a volume mount for `/var/lib/postgresql/data` so data survives restarts.
+3. Add a **Volume**, but mount it at `/var/lib/postgresql/data/pgdata` (a subdirectory),
+   **not** `/var/lib/postgresql/data` directly — and set `PGDATA=/var/lib/postgresql/data/pgdata`
+   as an env var on the service. Railway's fresh volumes come with a pre-existing
+   `lost+found` directory; `initdb` refuses to initialize into a non-empty directory, so
+   mounting straight at `/var/lib/postgresql/data` crashes the container on first boot
+   with `initdb: error: directory ".../data" exists but is not empty`. Hit this live —
+   costs a few minutes to notice since the container looks "Active" in Railway's UI while
+   actually crash-looping.
 4. Set env vars on that service: `POSTGRES_USER=voicerag`, `POSTGRES_PASSWORD=<generate a strong one>`, `POSTGRES_DB=voicerag`.
 5. Once running, note the private connection string Railway shows (`postgresql://voicerag:<password>@<service>.railway.internal:5432/voicerag`).
 
 ## 3. Railway — backend service
 
-1. In the same project: **New Service → GitHub Repo** → select this repo.
-2. Service settings → **Root Directory**: `backend`. Railway will pick up `backend/railway.toml` and `backend/Dockerfile` automatically.
-3. Environment variables (Railway service → Variables):
+1. In the same project: **New Service → GitHub Repo**, paste the repo URL directly if it
+   doesn't show up in the picker (a fresh Railway account often has no repos listed until
+   its GitHub App is authorized — see step 2).
+2. If the deployed service's Settings → Source shows **"GitHub Repo not found"** even
+   though the repo is selected: Railway's GitHub App isn't installed on that repo yet.
+   Go to **github.com/settings/installations** → find Railway → **Configure** → add the
+   repo (or grant all-repos access) → save. Back in Railway, disconnect and reconnect the
+   source repo (Settings → Source → the pencil icon) to force it to re-check access —
+   editing Root Directory alone doesn't retrigger the check.
+3. Service settings → **Root Directory**: `backend`. Railway will pick up `backend/railway.toml` and `backend/Dockerfile` automatically.
+4. Environment variables (Railway service → Variables):
 
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | the Postgres service's internal connection string from step 2 |
    | `OPENAI_API_KEY` | your key |
    | `ANTHROPIC_API_KEY` | your key |
-   | `ELEVENLABS_API_KEY` | your key |
+   | `ELEVENLABS_API_KEY` | your key (optional — voice answers just skip the spoken reply without it) |
    | `COHERE_API_KEY` | your key (optional — omit to silently fall back to `hybrid`) |
    | `ALLOWED_ORIGINS` | placeholder for now, e.g. `https://placeholder.vercel.app` — fix in step 5 |
    | `RATE_LIMIT_ENABLED` | `true` |
+   | `PORT` | `8000` — **set this explicitly.** Generating a domain (next step) makes you pick a "target port," but Railway can independently assign a *different* random port as the container's actual `$PORT` at runtime — we hit exactly this (target port 8000, container actually listening on 8080) and every request 502'd with "Application failed to respond" even though the app itself had started fine. Setting `PORT` yourself pins both to the same value. |
    | `API_KEY` | optional — set only if you want to gate `/ingest/*` behind a shared secret |
 
-4. Deploy. Railway assigns a public URL like `https://<service>.up.railway.app` — copy it.
-5. Verify: `curl https://<service>.up.railway.app/health` → `{"status": "ok"}`.
+5. Deploy, then Settings → Networking → **Generate Domain**, port `8000` (matching the `PORT` var above). Railway assigns a public URL like `https://<service>.up.railway.app` — copy it.
+6. Verify: `curl https://<service>.up.railway.app/health` → `{"status": "ok"}`. If you get a 502 "Application failed to respond" but the deployment shows Active, check Deploy Logs for the actual `uvicorn running on http://0.0.0.0:<port>` line and make sure it matches the domain's target port (see the `PORT` row above).
 
 ## 4. Vercel — frontend
 
-1. Import the GitHub repo as a new Vercel project.
-2. Project Settings → **Root Directory**: `frontend`.
-3. Environment variables (Project Settings → Environment Variables):
+1. Import the GitHub repo as a new Vercel project (vercel.com/new → paste the repo URL
+   directly if it's not in the picker list).
+2. Project Settings → **Root Directory**: `frontend` — Vercel auto-detects it as Next.js.
+3. Vercel auto-detects env vars from the repo's `.env.example`, which lists the
+   **backend's** variables (`DATABASE_URL`, `OPENAI_API_KEY`, etc.) — none of those belong
+   on the frontend project. Remove all of them and add only what's below.
+4. Environment variables (Project Settings → Environment Variables):
 
    | Variable | Value |
    |---|---|
    | `NEXT_PUBLIC_API_URL` | the Railway backend URL from step 3.4, e.g. `https://<service>.up.railway.app` |
    | `API_KEY` | same value as the backend's `API_KEY`, only if you set one — `middleware.ts` injects it server-side into `/api/ingest/*` requests |
 
-4. Deploy. Vercel assigns a URL like `https://<project>.vercel.app`.
+5. Deploy. Vercel assigns a URL like `https://<project>.vercel.app`.
 
 ## 5. Close the loop: CORS
 
