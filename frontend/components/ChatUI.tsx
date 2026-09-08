@@ -42,7 +42,7 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
   const threadId = useRef(crypto.randomUUID());
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const episodeById = useMemo(() => {
     const map: Record<string, Episode> = {};
@@ -60,8 +60,12 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
 
   // Re-runs on every token appended during streaming (each one is a new
   // `messages` array), so the view tracks the bottom live as text grows.
+  // Setting scrollTop directly on the container (rather than
+  // scrollIntoView, which walks up and can grab an unintended scrollable
+  // ancestor) keeps this pinned to the message list itself.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   function getAudioCtx(): AudioContext {
@@ -257,7 +261,7 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
       </div>
 
       {/* messages */}
-      <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 p-4">
+      <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-4 p-4">
         {messages.length === 0 && !loading && (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-gray-600 text-center max-w-xs">
@@ -295,7 +299,6 @@ export default function ChatUI({ selectedEpisode, episodes }: Props) {
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* input bar */}

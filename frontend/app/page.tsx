@@ -25,7 +25,7 @@ export default function Home() {
   }, [loadEpisodes]);
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen overflow-hidden">
       {/* ── header — single line, centered over the chat column ── */}
       <header className="shrink-0 border-b border-gray-800 flex items-center">
         {/* spacer matches sidebar width so content centers over chat */}
@@ -56,7 +56,7 @@ export default function Home() {
         </aside>
 
         {/* chat */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
           <ChatUI selectedEpisode={selectedEpisode} episodes={episodes} />
         </div>
       </div>
