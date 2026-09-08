@@ -1,6 +1,13 @@
 from unittest.mock import MagicMock
 
-from app.agent.history import ensure_thread, save_message, list_threads, get_thread, _make_title
+from app.agent.history import (
+    ensure_thread,
+    save_message,
+    list_threads,
+    get_thread,
+    delete_thread,
+    _make_title,
+)
 
 
 def test_make_title_truncates_long_first_message():
@@ -80,3 +87,28 @@ def test_get_thread_returns_none_when_absent():
     db = MagicMock()
     db.get.return_value = None
     assert get_thread(db, "nope") is None
+
+
+def test_delete_thread_removes_messages_and_thread():
+    db = MagicMock()
+    thread = MagicMock()
+    db.get.return_value = thread
+
+    result = delete_thread(db, "t1")
+
+    assert result is True
+    db.query.assert_called_once()
+    db.query.return_value.filter.return_value.delete.assert_called_once()
+    db.delete.assert_called_once_with(thread)
+    db.commit.assert_called_once()
+
+
+def test_delete_thread_returns_false_when_absent():
+    db = MagicMock()
+    db.get.return_value = None
+
+    result = delete_thread(db, "ghost")
+
+    assert result is False
+    db.delete.assert_not_called()
+    db.commit.assert_not_called()

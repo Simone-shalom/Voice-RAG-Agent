@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import ChatHistory from "../ChatHistory";
@@ -57,6 +57,73 @@ describe("ChatHistory", () => {
 
     await waitFor(() => expect(screen.getByText("New conversation")).toBeInTheDocument());
     expect(screen.getByText("not sent yet")).toBeInTheDocument();
+  });
+
+  it("requires a second click to actually delete (no native confirm dialog)", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChatHistory activeThreadId="t1" onSelectThread={vi.fn()} onNewChat={vi.fn()} refreshKey={0} />
+    );
+
+    await screen.findByText("Who is Patrick O'Neill?");
+    await user.click(screen.getByLabelText(`Delete "Who is Patrick O'Neill?"`));
+
+    // first click only arms the confirm state — nothing deleted yet
+    expect(screen.getByText("Who is Patrick O'Neill?")).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith("/api/agent/threads/t2", { method: "DELETE" });
+
+    await user.click(screen.getByLabelText(`Confirm delete "Who is Patrick O'Neill?"`));
+
+    await waitFor(() => expect(screen.queryByText("Who is Patrick O'Neill?")).not.toBeInTheDocument());
+    expect(fetch).toHaveBeenCalledWith("/api/agent/threads/t2", { method: "DELETE" });
+  });
+
+  it("cancels the pending delete without removing the thread", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChatHistory activeThreadId="t1" onSelectThread={vi.fn()} onNewChat={vi.fn()} refreshKey={0} />
+    );
+
+    await screen.findByText("Who is Patrick O'Neill?");
+    await user.click(screen.getByLabelText(`Delete "Who is Patrick O'Neill?"`));
+    await user.click(screen.getByLabelText(`Cancel deleting "Who is Patrick O'Neill?"`));
+
+    expect(screen.getByText("Who is Patrick O'Neill?")).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith("/api/agent/threads/t2", { method: "DELETE" });
+  });
+
+  it("starts a new chat when the active thread is deleted", async () => {
+    const user = userEvent.setup();
+    const onNewChat = vi.fn();
+    render(
+      <ChatHistory activeThreadId="t1" onSelectThread={vi.fn()} onNewChat={onNewChat} refreshKey={0} />
+    );
+
+    await screen.findByText("What is the Orbital Edge program?");
+    await user.click(screen.getByLabelText(`Delete "What is the Orbital Edge program?"`));
+    await user.click(screen.getByLabelText(`Confirm delete "What is the Orbital Edge program?"`));
+
+    expect(onNewChat).toHaveBeenCalledOnce();
+  });
+
+  it("auto-reverts the pending delete after the confirm window elapses", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <ChatHistory activeThreadId="t1" onSelectThread={vi.fn()} onNewChat={vi.fn()} refreshKey={0} />
+    );
+
+    await screen.findByText("Who is Patrick O'Neill?");
+    await user.click(screen.getByLabelText(`Delete "Who is Patrick O'Neill?"`));
+    expect(screen.getByLabelText(`Confirm delete "Who is Patrick O'Neill?"`)).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3100);
+    });
+
+    expect(screen.getByLabelText(`Delete "Who is Patrick O'Neill?"`)).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith("/api/agent/threads/t2", { method: "DELETE" });
+    vi.useRealTimers();
   });
 
   it("refetches when refreshKey changes", async () => {

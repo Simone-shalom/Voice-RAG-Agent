@@ -56,3 +56,18 @@ def list_threads(db: Session) -> list[ChatThread]:
 
 def get_thread(db: Session, thread_id: str) -> ChatThread | None:
     return db.get(ChatThread, thread_id)
+
+
+def delete_thread(db: Session, thread_id: str) -> bool:
+    """Deletes the thread and its messages. Returns False if it didn't exist."""
+    thread = db.get(ChatThread, thread_id)
+    if thread is None:
+        return False
+    # Explicit child delete rather than relying on an FK ON DELETE CASCADE —
+    # existing deployments' tables were created via Base.metadata.create_all
+    # before this function existed, so a cascade added to the model now
+    # wouldn't retroactively apply to an already-created constraint.
+    db.query(ChatMessage).filter(ChatMessage.thread_id == thread_id).delete()
+    db.delete(thread)
+    db.commit()
+    return True

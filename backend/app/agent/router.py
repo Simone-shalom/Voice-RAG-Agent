@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..core.rate_limit import limiter
 from ..db.session import get_db
 from .graph import build_graph
-from .history import ensure_thread, get_thread, list_threads, save_message
+from .history import delete_thread, ensure_thread, get_thread, list_threads, save_message
 from .streaming import stream_agent_response
 
 logger = logging.getLogger(__name__)
@@ -131,3 +131,9 @@ def get_thread_detail(thread_id: str, db: Session = Depends(get_db)):
             for m in thread.messages
         ],
     )
+
+
+@router.delete("/threads/{thread_id}", status_code=204)
+def delete_thread_endpoint(thread_id: str, db: Session = Depends(get_db)):
+    if not delete_thread(db, thread_id):
+        raise HTTPException(status_code=404, detail="thread not found")

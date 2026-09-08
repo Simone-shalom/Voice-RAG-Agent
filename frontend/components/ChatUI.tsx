@@ -262,39 +262,42 @@ export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUp
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto">
-      {/* episode focus chip */}
-      {selectedEpisode && (
-        <div className="shrink-0 px-4 pt-3">
-          <div className="inline-flex items-center gap-1.5 bg-indigo-950/70 border border-indigo-700/60 rounded-full px-3 py-1 text-xs text-indigo-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-            <span className="truncate max-w-[240px]" title={selectedEpisode.filename}>
-              Focused on: <span className="font-medium text-indigo-200">{selectedEpisode.filename}</span>
-            </span>
-            <span className="text-indigo-500 ml-0.5">·</span>
-            <span className="text-indigo-500 text-[10px]">
-              deselect in sidebar
-            </span>
-          </div>
+      {/* toolbar: episode focus chip (left) + search mode selector (right) — one row, always present */}
+      <div className="shrink-0 px-4 pt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {selectedEpisode ? (
+            <div className="inline-flex items-center gap-1.5 bg-indigo-950/70 border border-indigo-700/60 rounded-full px-3 py-1 text-xs text-indigo-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+              <span className="truncate max-w-[200px]" title={selectedEpisode.filename}>
+                Focused on: <span className="font-medium text-indigo-200">{selectedEpisode.filename}</span>
+              </span>
+              <span className="text-indigo-500 ml-0.5">·</span>
+              <span className="text-indigo-500 text-[10px] whitespace-nowrap">
+                deselect in sidebar
+              </span>
+            </div>
+          ) : (
+            <p className="text-[10px] text-gray-600">All episodes</p>
+          )}
         </div>
-      )}
 
-      {/* search mode selector */}
-      <div className="shrink-0 px-4 pt-3 flex items-center gap-2">
-        <label htmlFor="search-mode" className="text-[10px] uppercase tracking-widest text-gray-500">
-          Search mode
-        </label>
-        <select
-          id="search-mode"
-          value={mode}
-          onChange={(e) => setMode(e.target.value as SearchMode)}
-          className="bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-indigo-500"
-        >
-          {SEARCH_MODES.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+        <div className="shrink-0 flex items-center gap-2">
+          <label htmlFor="search-mode" className="text-[10px] uppercase tracking-widest text-gray-500">
+            Search mode
+          </label>
+          <select
+            id="search-mode"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as SearchMode)}
+            className="bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-indigo-500"
+          >
+            {SEARCH_MODES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* messages */}

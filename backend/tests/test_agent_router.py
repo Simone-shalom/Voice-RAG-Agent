@@ -115,3 +115,19 @@ def test_get_thread_detail_404_when_missing(client):
         response = client.get("/agent/threads/nonexistent")
 
     assert response.status_code == 404
+
+
+def test_delete_thread_returns_204(client):
+    with patch("app.agent.router.delete_thread", return_value=True) as mock_delete:
+        response = client.delete("/agent/threads/t1")
+
+    assert response.status_code == 204
+    mock_delete.assert_called_once()
+    assert mock_delete.call_args[0][1] == "t1"
+
+
+def test_delete_thread_404_when_missing(client):
+    with patch("app.agent.router.delete_thread", return_value=False):
+        response = client.delete("/agent/threads/nonexistent")
+
+    assert response.status_code == 404
