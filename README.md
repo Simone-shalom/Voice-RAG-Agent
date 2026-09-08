@@ -10,21 +10,25 @@ Ask questions about your podcast/lecture library — by voice or text — and ge
 
 ```
 Browser (Next.js 15)
-  │  voice input → MediaRecorder → webm blob
-  │  text input → fetch
+  │  voice input → MediaRecorder (energy-based VAD auto-stop) → webm blob
+  │  text input  → fetch
+  │  search mode → semantic | bm25 | hybrid | hybrid+rerank selector
   ▼
 FastAPI backend (port 8000)
-  ├── POST /voice/stt   → OpenAI Whisper → transcript
-  ├── POST /agent/chat  → LangGraph agent
+  ├── POST /voice/stt          → OpenAI Whisper → transcript
+  ├── POST /agent/chat         → LangGraph agent (single response)
+  ├── POST /agent/chat/stream  → LangGraph agent (SSE: tokens, sources, done)
   │     ├── search_transcripts      → hybrid search (RRF + optional Cohere rerank)
   │     ├── get_context_around_ts   → timestamp lookup
   │     ├── compare_across_episodes → per-episode grouped search
   │     └── summarise_segment       → segment formatting
-  └── POST /voice/tts   → ElevenLabs → MP3 bytes
+  ├── POST /voice/tts          → ElevenLabs → MP3 bytes, streamed sentence-by-sentence
+  ├── POST /ingest/upload | /ingest/url | /ingest/rss   → Whisper transcription + chunking + embedding
+  └── GET  /search?q=...&mode= → direct hybrid/semantic/bm25/rerank search
                                            │
                               ◄────────────┘
-                          audio plays in browser
-                          source citations appear with ▶ jump links
+                          audio plays in browser (AudioContext streaming playback)
+                          source citations appear with ▶ jump links (Media Fragments seek)
 
 PostgreSQL 16 + pgvector
   ├── episodes table (id, filename, source_url)
@@ -37,6 +41,8 @@ MCP Server (stdio)
   ├── get_episode_summary(episode_id)
   └── find_mentions(topic)
 ```
+
+Security hardening (SSRF guard on `/ingest/url`+`/ingest/rss`, upload content-sniffing, rate limiting, optional `X-API-Key` gate on ingest, CORS) is documented in `DECISIONS.md`.
 
 ---
 
@@ -137,11 +143,9 @@ Key choices documented in [`DECISIONS.md`](DECISIONS.md):
 
 ## Known Limitations
 
-- **No streaming**: voice answers play after full generation. Streaming STT→LLM→TTS would require WebSocket / SSE and significantly lower the time-to-first-sound.
-- **No VAD**: silence detection (Voice Activity Detection) is not implemented; recording stops on button click, not automatically.
-- **Synthetic golden dataset**: `eval/golden_dataset/questions.json` contains 15 questions written for a hypothetical corpus. Eval scores are only meaningful after ingesting real content and updating the questions.
-- **No production deploy**: Docker Compose runs everything locally. Vercel (frontend) + Railway (backend+postgres) deployment is left as an exercise — all required env vars are documented.
+- **No production deploy yet**: Docker Compose runs everything locally. The backend is already CORS/proxy-ready for a split-domain deploy (Vercel frontend + Railway backend+postgres, see `DECISIONS.md` Etap 13) — step-by-step instructions are in [`DEPLOYMENT.md`](DEPLOYMENT.md); only hosting accounts and env vars remain.
 - **compare_across_episodes**: the LangGraph tool exists but is not deeply tested for cross-episode queries requiring multiple tool calls against specific episode IDs.
+- **No persistent audio storage for uploads**: `SourcePlayer` can only seek into episodes ingested via URL/RSS (which keep an external `source_url`); directly-uploaded files are transcribed and discarded, so their citations show text only, no jump-to-timestamp playback.
 
 ---
 
@@ -156,7 +160,7 @@ backend/           FastAPI app (Python 3.12)
     voice/         STT (Whisper), TTS (ElevenLabs)
     episodes/      list/get episodes and their chunks
     db/            SQLAlchemy models, session, init_db
-  tests/           131 pytest tests, all mocked (no real DB/API calls)
+  tests/           223 pytest tests, all mocked (no real DB/API calls)
 
 eval/              RAG eval harness
   scorer.py        RAGTriadScorer (LLM-as-judge)

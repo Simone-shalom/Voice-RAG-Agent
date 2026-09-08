@@ -20,6 +20,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://voicerag:voicerag@postgres:5432/voicerag
+    # Local-dev-only override — the image's own CMD (no --reload) is what
+    # actually ships to Railway/production.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     depends_on:
