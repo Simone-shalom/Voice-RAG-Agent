@@ -19,10 +19,10 @@ def semantic_search(query: str, limit: int, db: Session) -> list[dict]:
         text(
             """
             SELECT c.id, c.episode_id, c.start_ts, c.end_ts, c.text,
-                   1 - (c.embedding <=> :emb::vector) AS similarity
+                   1 - (c.embedding <=> CAST(:emb AS vector)) AS similarity
             FROM chunks c
             WHERE c.embedding IS NOT NULL
-            ORDER BY c.embedding <=> :emb::vector
+            ORDER BY c.embedding <=> CAST(:emb AS vector)
             LIMIT :limit
             """
         ),

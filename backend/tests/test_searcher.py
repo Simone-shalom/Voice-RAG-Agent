@@ -3,6 +3,9 @@ os.environ.setdefault("DATABASE_URL", "postgresql://voicerag:voicerag@localhost:
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
 from unittest.mock import MagicMock, patch
+
+from sqlalchemy.dialects import postgresql
+
 from app.search.searcher import semantic_search, hybrid_search, hybrid_rerank_search
 
 
@@ -42,6 +45,28 @@ def test_semantic_search_passes_limit_to_query():
 
     _, params = db.execute.call_args[0]
     assert params["limit"] == 5
+
+
+def test_semantic_search_query_actually_binds_emb_param():
+    """
+    Regression test: `:emb::vector` looks like a bind param followed by a
+    Postgres cast, but SQLAlchemy's text() bind-param regex has a negative
+    lookahead on a trailing `:` (to avoid colliding with `::` casts) and
+    silently refuses to treat `:emb` as a param at all when compiled — the
+    mock-based tests above never caught this because they only check the
+    Python-level dict passed to db.execute(), not what the driver actually
+    receives. Compiling against the real postgres dialect catches it.
+    """
+    db = MagicMock()
+    db.execute.return_value.fetchall.return_value = []
+
+    with patch("app.search.searcher.embed_texts", return_value=[[0.1] * 1536]):
+        semantic_search("query", limit=5, db=db)
+
+    query, _ = db.execute.call_args[0]
+    compiled_params = query.compile(dialect=postgresql.dialect()).params
+    assert "emb" in compiled_params
+    assert "limit" in compiled_params
 
 
 def _make_chunk(cid, sim=0.5):
