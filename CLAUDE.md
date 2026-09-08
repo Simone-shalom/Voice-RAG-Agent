@@ -29,7 +29,7 @@ Backend hot-reloads via volume mount (`./backend:/app`).
 
 ```bash
 cd backend
-python -m pytest tests/ -v       # 226 tests, all mocked (no real DB/API calls needed)
+python -m pytest tests/ -v       # 244 tests, all mocked (no real DB/API calls needed)
 ```
 
 ## Git conventions
@@ -93,7 +93,9 @@ Defined in `backend/app/agent/tools.py` via `make_tools(db, mode="hybrid", sourc
 | `compare_across_episodes` | `(query: str, episode_ids: str, limit_per_episode: int=3)` | grouped search per episode (limit clamped to 1-20) |
 | `summarise_segment` | `(text: str)` | format segment for LLM analysis |
 
-MAX_STEPS = 6 (step counter guard in graph state). MemorySaver checkpoints per `thread_id`.
+MAX_STEPS = 6 (step counter guard in graph state). MemorySaver checkpoints per `thread_id` (module-level singleton — see gotchas).
+
+**Chat history** (`backend/app/agent/history.py`, `db/models.py::ChatThread`/`ChatMessage`): every `/agent/chat` and `/agent/chat/stream` call persists the user + assistant messages (with citations) to Postgres, separate from LangGraph's own checkpointing. `GET /agent/threads` lists past conversations (id, title, updated_at); `GET /agent/threads/{id}` returns the full message list for reopening one. Thread title is the first ~60 chars of the first user message.
 
 ## MCP tools
 
@@ -163,10 +165,11 @@ Copy `.env.example` → `.env` (never commit `.env`).
 - **pgvector cosine**: use `<=>` operator for cosine distance; always add `WHERE embedding IS NOT NULL` guard.
 - **RRF**: sum reciprocal **ranks** (1/(k+rank)), not raw similarity scores. Verify with test that puts a chunk in both lists — it should rank first in fused results.
 - **Whisper STT for voice queries**: returns plain `str`, not segment list. Only ingest transcriber returns segments (for timestamp chunking).
-- **Test suite**: 226 tests, all mocked. Never require a running database or real API keys for tests.
+- **Test suite**: 244 tests, all mocked. Never require a running database or real API keys for tests.
 - **Anthropic streaming chunk shape**: `chunk.content` from `ChatAnthropic().astream_events()` (langchain-anthropic 1.x) is a **list of content blocks** (`[{"type": "text", "text": "..."}]`, interleaved with `tool_use`/`input_json_delta` blocks during a tool call), not a plain string. `app.agent.streaming._extract_text` handles this; don't reintroduce a bare `isinstance(content, str)` check — it silently drops every token (this shipped broken once already; mocked tests didn't catch it because the mock used a plain string).
 - **`:param::type` in raw SQL**: SQLAlchemy's `text()` bind-param regex has a negative lookahead on a trailing `:`, so `:emb::vector` is never recognized as a bind param (collides with Postgres's `::` cast) — it's silently left as literal text and the param is dropped before reaching the driver. Use `CAST(:param AS type)` instead. Same root cause as above: mocked-DB tests never compile the SQL against a real dialect, so this also shipped broken once.
 - **`MemorySaver` must be a module-level singleton**: `build_graph()` is called fresh on every `/agent/chat` and `/agent/chat/stream` request. A `MemorySaver()` instantiated *inside* `build_graph()` gives every request an empty checkpoint store — `thread_id` becomes inert and the agent has zero memory of earlier turns, even within one browser session (this shipped broken once too — no test called `build_graph()` twice with the same `thread_id` to catch it). The checkpointer (`app.agent.graph._CHECKPOINTER`) must be created once at module scope and reused across calls.
+- **Chat history persistence must happen before TTS, not after**: in `stream_agent_response`, save the assistant message (`app.agent.history.save_message`) right after the token loop ends — *before* the TTS `await` loop. A TTS failure is fatal-by-design (aborts before `"done"`), so persistence placed after it silently never runs whenever ElevenLabs is unavailable (this shipped broken once with `ELEVENLABS_API_KEY` unset — every streamed answer's history entry was lost).
 
 ## Ingest commands
 

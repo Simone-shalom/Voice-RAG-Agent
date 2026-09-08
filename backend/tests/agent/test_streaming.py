@@ -244,6 +244,113 @@ async def test_no_sources_event_when_sink_empty():
 
 
 @pytest.mark.asyncio
+async def test_persists_user_message_and_accumulated_answer():
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("Hello ")
+        yield _make_token_event("world.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    with patch("app.agent.streaming.build_graph", return_value=mock_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch("app.agent.streaming.ensure_thread") as mock_ensure, \
+         patch("app.agent.streaming.save_message") as mock_save, \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        db = MagicMock()
+        await _collect(stream_agent_response("hi there", "t1", db=db))
+
+    mock_ensure.assert_called_once_with(db, "t1", "hi there")
+    assert mock_save.call_count == 2
+    assert mock_save.call_args_list[0][0] == (db, "t1", "user", "hi there")
+    assert mock_save.call_args_list[1][0] == (db, "t1", "assistant", "Hello world.", None)
+
+
+@pytest.mark.asyncio
+async def test_persists_assistant_message_with_sources():
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("Answer text.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    def fake_build_graph(db, llm, mode="hybrid", sources_sink=None):
+        if sources_sink is not None:
+            sources_sink.append({"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi"})
+        return mock_graph
+
+    with patch("app.agent.streaming.build_graph", side_effect=fake_build_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch("app.agent.streaming.ensure_thread"), \
+         patch("app.agent.streaming.save_message") as mock_save, \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
+
+    assistant_call = mock_save.call_args_list[-1]
+    assert assistant_call[0][2] == "assistant"
+    assert assistant_call[0][3] == "Answer text."
+    assert assistant_call[0][4] == [{"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi"}]
+
+
+@pytest.mark.asyncio
+async def test_assistant_message_persisted_even_when_tts_fails():
+    """
+    Regression test: this shipped broken once — assistant-message
+    persistence was originally placed *after* the TTS await loop, but a
+    TTS failure is fatal-by-design (see test_tts_failure_yields_error_event_not_crash)
+    and aborts the generator before reaching code after it. With
+    ELEVENLABS_API_KEY unset (the real state during initial testing),
+    every single streamed answer failed to persist. History must be saved
+    before TTS is attempted, not after.
+    """
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("The real answer.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    with patch("app.agent.streaming.build_graph", return_value=mock_graph), \
+         patch("app.agent.streaming.synthesise", side_effect=RuntimeError("ElevenLabs API down")), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch("app.agent.streaming.ensure_thread"), \
+         patch("app.agent.streaming.save_message") as mock_save, \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        items = await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
+
+    assert any(i["type"] == "error" for i in items)  # TTS failure still surfaces
+    assert mock_save.call_count == 2  # user + assistant both persisted anyway
+    assert mock_save.call_args_list[1][0][2:4] == ("assistant", "The real answer.")
+
+
+@pytest.mark.asyncio
+async def test_history_persistence_failure_does_not_break_stream():
+    """A history-write failure must never surface as a chat error event."""
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("Real answer.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    with patch("app.agent.streaming.build_graph", return_value=mock_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch("app.agent.streaming.save_message", side_effect=RuntimeError("db down")), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        items = await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
+
+    token_events = [i for i in items if i["type"] == "token"]
+    assert "".join(t["text"] for t in token_events) == "Real answer."
+    assert items[-1]["type"] == "done"
+    assert not any(i["type"] == "error" for i in items)
+
+
+@pytest.mark.asyncio
 async def test_forwards_mode_to_build_graph():
     async def fake_stream(*args, **kwargs):
         yield _make_token_event("Short text.")

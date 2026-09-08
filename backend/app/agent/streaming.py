@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import json
+import logging
 import os
 from typing import AsyncGenerator
 
@@ -11,10 +12,23 @@ from sqlalchemy.orm import Session
 
 from .chunker import SentenceChunker
 from .graph import build_graph
+from .history import ensure_thread, save_message
 from ..voice.tts import synthesise
 
+logger = logging.getLogger(__name__)
 
 MAX_SOURCES = 8  # cap how many chunks are surfaced as citations per answer
+
+
+def _persist_safely(fn, *args, **kwargs) -> None:
+    # History is a convenience feature — a persistence hiccup must never
+    # surface as a chat error to the user (the outer try/except in
+    # stream_agent_response would otherwise turn it into an "error" SSE
+    # event even though the actual answer generation succeeded).
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        logger.exception("failed to persist chat history")
 
 
 def _sse(payload: dict) -> str:
@@ -64,10 +78,14 @@ async def stream_agent_response(
         yield _sse({"type": "error", "text": "ANTHROPIC_API_KEY not set"})
         return
 
+    _persist_safely(ensure_thread, db, thread_id, message)
+    _persist_safely(save_message, db, thread_id, "user", message)
+
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001", api_key=api_key)
     sources_sink: list[dict] = []
     graph = build_graph(db=db, llm=llm, mode=mode, sources_sink=sources_sink)
     chunker = SentenceChunker()
+    answer_parts: list[str] = []
 
     async def _tts_chunk(text: str) -> str:
         loop = asyncio.get_running_loop()
@@ -89,6 +107,7 @@ async def stream_agent_response(
             if not token:
                 continue
 
+            answer_parts.append(token)
             yield _sse({"type": "token", "text": token})
 
             for sentence in chunker.push(token):
@@ -97,12 +116,13 @@ async def stream_agent_response(
         for sentence in chunker.flush():
             tts_tasks.append(asyncio.create_task(_tts_chunk(sentence)))
 
-        for task in tts_tasks:
-            yield await task
-
+        # Compute sources and persist the answer *before* awaiting TTS —
+        # TTS failure is fatal-by-design below (aborts before "done", see
+        # test_tts_failure_yields_error_event_not_crash) and must not also
+        # take the already-complete answer's history entry down with it.
+        deduped: list[dict] = []
         if sources_sink:
             seen = set()
-            deduped: list[dict] = []
             for src in sources_sink:
                 key = (src.get("episode_id"), src.get("start_ts"), src.get("end_ts"))
                 if key in seen:
@@ -116,6 +136,15 @@ async def stream_agent_response(
                 })
                 if len(deduped) >= MAX_SOURCES:
                     break
+
+        full_answer = "".join(answer_parts)
+        if full_answer:
+            _persist_safely(save_message, db, thread_id, "assistant", full_answer, deduped or None)
+
+        for task in tts_tasks:
+            yield await task
+
+        if sources_sink:
             yield _sse({"type": "sources", "data": deduped})
 
         yield _sse({"type": "done"})
