@@ -4,6 +4,8 @@ Ask questions about your podcast/lecture library — by voice or text — and ge
 
 📘 **[Project walkthrough (interactive)](https://claude.ai/code/artifact/36785123-1034-4248-9c00-0b886d62faf9)** — the architecture below, step by step, with mock data at every stage, why LangGraph exists, the full MCP-vs-agent split, and a with/without-LangGraph comparison. Private artifact — open it signed into the account that created it.
 
+🔗 **[Live demo](https://voice-rag-agent-ten.vercel.app)** — frontend on Vercel, backend + Postgres/pgvector on Railway. It's a low-traffic portfolio deployment on free/low-cost hosting tiers (see `DEPLOYMENT.md`), not sized for sustained heavy traffic.
+
 ---
 
 ## Architecture
@@ -160,7 +162,7 @@ Key choices documented in [`DECISIONS.md`](DECISIONS.md):
 
 ## Known Limitations
 
-- **No production deploy yet**: Docker Compose runs everything locally. The backend is already CORS/proxy-ready for a split-domain deploy (Vercel frontend + Railway backend+postgres, see `DECISIONS.md` Etap 13) — step-by-step instructions are in [`DEPLOYMENT.md`](DEPLOYMENT.md); only hosting accounts and env vars remain.
+- **Low-traffic demo hosting**: the [live demo](https://voice-rag-agent-ten.vercel.app) runs on Railway's lowest paid tier + Vercel's free Hobby tier (see `DEPLOYMENT.md` for cost notes and deploy steps) — fine for a portfolio link, not sized for sustained traffic. Local `docker compose up` remains the way to run the full stack for development.
 - **compare_across_episodes**: the LangGraph tool exists but is not deeply tested for cross-episode queries requiring multiple tool calls against specific episode IDs.
 - **Single-episode golden dataset**: the eval corpus is currently one real episode (kept small deliberately — Whisper transcription is metered API spend). The 8 questions above are real and grounded in that transcript, but don't yet exercise `compare_across_episodes`; ingest more episodes and extend `eval/golden_dataset/questions.json` to cover that.
 - **No persistent audio storage for uploads**: `SourcePlayer` can only seek into episodes ingested via URL/RSS (which keep an external `source_url`); directly-uploaded files are transcribed and discarded, so their citations show text only, no jump-to-timestamp playback.
