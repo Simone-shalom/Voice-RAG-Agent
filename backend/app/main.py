@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,6 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from .core.logging import configure_logging
 from .core.rate_limit import limiter
+from .core.allowed_origins import get_allowed_origins
 from .db.session import engine, init_db
 from .agent.router import router as agent_router
 from .episodes.router import router as episodes_router
@@ -30,11 +30,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-_allowed_origins = [
-    origin.strip()
-    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
-]
+_allowed_origins = get_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,

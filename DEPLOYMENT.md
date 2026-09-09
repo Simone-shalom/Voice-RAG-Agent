@@ -70,6 +70,7 @@ fail against it. Instead:
    | Variable | Value |
    |---|---|
    | `NEXT_PUBLIC_API_URL` | the Railway backend URL from step 3.4, e.g. `https://<service>.up.railway.app` |
+   | `NEXT_PUBLIC_WS_URL` | optional here — `voiceStreamUrl()` (`frontend/lib/voiceWebSocket.ts`) falls back to deriving `wss://` from `NEXT_PUBLIC_API_URL` when this is unset, which is correct once the backend has a real public `https://` URL. It exists mainly for local `docker compose up`, where `NEXT_PUBLIC_API_URL` is deliberately the compose-internal `http://backend:8000` (unreachable from a browser) and this var must be set explicitly to `ws://localhost:8000` instead — see `docker-compose.yml` and `DECISIONS.md`'s Etap 14 addendum. Set it here too if the backend's public URL doesn't cleanly `http(s)->ws(s)`-derive for some reason. |
    | `API_KEY` | same value as the backend's `API_KEY`, only if you set one — `middleware.ts` injects it server-side into `/api/ingest/*` requests |
 
 5. Deploy. Vercel assigns a URL like `https://<project>.vercel.app`.

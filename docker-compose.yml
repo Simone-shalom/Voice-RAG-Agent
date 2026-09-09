@@ -41,6 +41,13 @@ services:
       # runs inside this container — "backend" is the compose service's
       # internal DNS name, not reachable as "localhost" from here.
       NEXT_PUBLIC_API_URL: http://backend:8000
+      # Consumed directly by browser-shipped code (frontend/lib/voiceWebSocket.ts)
+      # for the voice WebSocket — unlike NEXT_PUBLIC_API_URL above, this one
+      # really is read client-side, so it must be a host-reachable address,
+      # never the "backend" compose-internal DNS name. See DECISIONS.md
+      # (Etap 14 NEXT_PUBLIC_API_URL entry, addendum) for why a second var
+      # was needed instead of reusing the first.
+      NEXT_PUBLIC_WS_URL: ws://localhost:8000
       # Docker Desktop on Windows doesn't reliably forward inotify events
       # for host-edited files across the bind mount to webpack's watcher —
       # edits silently never trigger a recompile. Polling works regardless

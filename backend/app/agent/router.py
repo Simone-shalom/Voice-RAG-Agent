@@ -13,7 +13,7 @@ from ..core.rate_limit import limiter
 from ..db.session import get_db
 from .graph import build_graph
 from .history import delete_thread, ensure_thread, get_thread, list_threads, save_message
-from .streaming import stream_agent_response
+from .streaming import stream_agent_response, _sse
 
 logger = logging.getLogger(__name__)
 
@@ -99,13 +99,13 @@ def chat(request: Request, body: ChatRequest, db: Session = Depends(get_db)):
 @limiter.limit("20/minute")
 async def chat_stream(request: Request, body: ChatRequest, db: Session = Depends(get_db)):
     async def generate():
-        async for chunk in stream_agent_response(
+        async for event in stream_agent_response(
             message=body.message,
             thread_id=body.thread_id,
             db=db,
             mode=body.mode,
         ):
-            yield chunk
+            yield _sse(event)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

@@ -59,11 +59,12 @@ async def stream_agent_response(
     thread_id: str,
     db: Session,
     mode: str = "hybrid",
-) -> AsyncGenerator[str, None]:
+    cancel_event: asyncio.Event | None = None,
+) -> AsyncGenerator[dict, None]:
     """
-    Async generator yielding SSE strings.
+    Async generator yielding event dicts — the caller (SSE router or WebSocket handler) decides how to serialize them.
 
-    Event types: token, audio (b64+text), sources, done, error.
+    Event types: token, audio (b64+text), sources, done, cancelled, error.
       {"type": "token",  "text": "..."}                          — each streamed token
       {"type": "audio",  "data": "<b64>", "text": "..."}          — synthesised sentence chunk, in playback order
       {"type": "sources", "data": [{"episode_id","start_ts","end_ts","text"}, ...]}
@@ -71,11 +72,12 @@ async def stream_agent_response(
                                                                      retrieved, sent once before "done";
                                                                      omitted entirely if nothing was retrieved
       {"type": "done"}                                            — end of stream
+      {"type": "cancelled"}                                       — stream interrupted by cancel_event
       {"type": "error", "text": "..."}                            — fatal error (missing API key, or a failure mid-stream)
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        yield _sse({"type": "error", "text": "ANTHROPIC_API_KEY not set"})
+        yield {"type": "error", "text": "ANTHROPIC_API_KEY not set"}
         return
 
     _persist_safely(ensure_thread, db, thread_id, message)
@@ -87,11 +89,11 @@ async def stream_agent_response(
     chunker = SentenceChunker()
     answer_parts: list[str] = []
 
-    async def _tts_chunk(text: str) -> str:
+    async def _tts_chunk(text: str) -> dict:
         loop = asyncio.get_running_loop()
         mp3_bytes = await loop.run_in_executor(None, synthesise, text)
         b64 = base64.b64encode(mp3_bytes).decode()
-        return _sse({"type": "audio", "data": b64, "text": text})
+        return {"type": "audio", "data": b64, "text": text}
 
     tts_tasks: list[asyncio.Task] = []
 
@@ -108,10 +110,16 @@ async def stream_agent_response(
                 continue
 
             answer_parts.append(token)
-            yield _sse({"type": "token", "text": token})
+            yield {"type": "token", "text": token}
 
             for sentence in chunker.push(token):
                 tts_tasks.append(asyncio.create_task(_tts_chunk(sentence)))
+
+            if cancel_event is not None and cancel_event.is_set():
+                for task in tts_tasks:
+                    task.cancel()
+                yield {"type": "cancelled"}
+                return
 
         for sentence in chunker.flush():
             tts_tasks.append(asyncio.create_task(_tts_chunk(sentence)))
@@ -145,12 +153,12 @@ async def stream_agent_response(
             yield await task
 
         if sources_sink:
-            yield _sse({"type": "sources", "data": deduped})
+            yield {"type": "sources", "data": deduped}
 
-        yield _sse({"type": "done"})
+        yield {"type": "done"}
 
     except Exception as exc:
-        yield _sse({"type": "error", "text": str(exc)})
+        yield {"type": "error", "text": str(exc)}
 
     finally:
         for task in tts_tasks:

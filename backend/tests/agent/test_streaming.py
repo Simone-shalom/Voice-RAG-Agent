@@ -1,5 +1,5 @@
+import asyncio
 import base64
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,10 +21,7 @@ def _make_token_event(text: str) -> dict:
 
 
 async def _collect(gen) -> list[dict]:
-    results = []
-    async for item in gen:
-        results.append(json.loads(item.removeprefix("data: ").strip()))
-    return results
+    return [item async for item in gen]
 
 
 @pytest.mark.asyncio
@@ -401,3 +398,55 @@ async def test_sources_event_strips_extra_fields_and_caps_at_max():
     assert "chunk_id" not in sources_event["data"][0]
     assert "similarity" not in sources_event["data"][0]
     assert len(sources_event["data"]) == 8
+
+
+@pytest.mark.asyncio
+async def test_cancel_event_stops_stream_and_yields_cancelled():
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("First. ")
+        yield _make_token_event("Second sentence that keeps going. ")
+        yield _make_token_event("Third sentence, should never be reached. ")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+    cancel_event = asyncio.Event()
+
+    async def cancel_after_first_token(gen):
+        results = []
+        async for item in gen:
+            results.append(item)
+            if item.get("type") == "token" and "First" in item["text"]:
+                cancel_event.set()
+        return results
+
+    with patch("app.agent.streaming.build_graph", return_value=mock_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        items = await cancel_after_first_token(
+            stream_agent_response("hi", "t1", db=MagicMock(), cancel_event=cancel_event)
+        )
+
+    assert items[-1]["type"] == "cancelled"
+    assert not any(i["type"] == "done" for i in items)
+    assert not any("Third sentence" in i.get("text", "") for i in items)
+
+
+@pytest.mark.asyncio
+async def test_no_cancel_event_behaves_exactly_as_before():
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("Only sentence here, no cancellation.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    with patch("app.agent.streaming.build_graph", return_value=mock_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+
+        items = await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
+
+    assert items[-1]["type"] == "done"
+    assert not any(i["type"] == "cancelled" for i in items)

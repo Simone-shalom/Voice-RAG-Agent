@@ -4,9 +4,11 @@ from pydantic import BaseModel
 
 from ..core.rate_limit import limiter
 from .stt import transcribe_audio
+from .stream_ws import websocket_voice_stream
 from .tts import synthesise
 
 router = APIRouter(prefix="/voice", tags=["voice"])
+router.add_api_websocket_route("/stream", websocket_voice_stream)
 
 
 class STTResponse(BaseModel):

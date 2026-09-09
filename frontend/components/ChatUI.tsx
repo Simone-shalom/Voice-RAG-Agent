@@ -2,18 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import AudioRecorder from "./AudioRecorder";
+import VoiceStream from "./VoiceStream";
 import SourcePlayer from "./SourcePlayer";
 import { Episode } from "./FileUploader";
 import { friendlyErrorMessage } from "@/lib/errors";
 
-interface Source {
+export interface Source {
   episode_id: string;
   start_ts: number;
   end_ts: number;
   text: string;
 }
 
-interface Message {
+export interface Message {
   role: "user" | "assistant";
   text: string;
   sources?: Source[];
@@ -43,10 +44,78 @@ const SEARCH_MODES: { value: SearchMode; label: string }[] = [
   { value: "hybrid+rerank", label: "Hybrid + Rerank" },
 ];
 
+export function applyStreamEvent(
+  event: { type: string; text?: string; data?: string | Source[] },
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  onAudio: (base64: string) => void
+): boolean {
+  if (event.type === "token") {
+    setMessages((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = { ...last, text: last.text + ((event.text as string) ?? "") };
+      }
+      return next;
+    });
+    return false;
+  }
+  if (event.type === "audio" && typeof event.data === "string") {
+    onAudio(event.data);
+    return false;
+  }
+  if (event.type === "sources" && Array.isArray(event.data)) {
+    const sources = event.data;
+    setMessages((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = { ...last, sources };
+      }
+      return next;
+    });
+    return false;
+  }
+  if (event.type === "error") {
+    setMessages((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = {
+          ...last,
+          text: last.text || `Error: ${event.text}`,
+          streaming: false,
+        };
+      }
+      return next;
+    });
+    return true;
+  }
+  if (event.type === "done" || event.type === "cancelled") {
+    setMessages((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = { ...last, streaming: false };
+      }
+      return next;
+    });
+    return true;
+  }
+  return false;
+}
+
 export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUpdated }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // Mirrors VoiceStream's own answeringRef — a voice turn is actively
+  // streaming a response. Typed sends and voice turns each independently
+  // seed/mutate "the last assistant message", so without a shared guard a
+  // typed message sent while a voice answer is still streaming (or vice
+  // versa) can interleave tokens into the same bubble or stomp the other
+  // path's placeholder. `loading` alone only guards the typed path.
+  const [voiceAnswering, setVoiceAnswering] = useState(false);
   const [mode, setMode] = useState<SearchMode>("hybrid");
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -135,7 +204,7 @@ export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUp
 
   async function sendMessage(userText: string) {
     if (!userText.trim()) return;
-    if (loading) return;
+    if (loading || voiceAnswering) return;
     setInput("");
     setLoading(true);
 
@@ -190,45 +259,7 @@ export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUp
             continue;
           }
 
-          if (event.type === "token") {
-            setMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.role === "assistant") {
-                next[next.length - 1] = {
-                  ...last,
-                  text: last.text + ((event.text as string) ?? ""),
-                };
-              }
-              return next;
-            });
-          } else if (event.type === "audio" && typeof event.data === "string") {
-            enqueueAudioChunk(event.data);
-          } else if (event.type === "sources" && Array.isArray(event.data)) {
-            const sources = event.data;
-            setMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.role === "assistant") {
-                next[next.length - 1] = { ...last, sources };
-              }
-              return next;
-            });
-          } else if (event.type === "error") {
-            setMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.role === "assistant") {
-                next[next.length - 1] = {
-                  ...last,
-                  text: last.text || `Error: ${event.text}`,
-                  streaming: false,
-                };
-              }
-              return next;
-            });
-            done = true;
-          } else if (event.type === "done") {
+          if (applyStreamEvent(event, setMessages, enqueueAudioChunk)) {
             done = true;
           }
         }
@@ -343,7 +374,12 @@ export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUp
 
       {/* input bar */}
       <div className="shrink-0 border-t border-gray-800 p-4 space-y-3">
-        <AudioRecorder onTranscript={(t) => sendMessage(t)} />
+        <VoiceStream
+          setMessages={setMessages}
+          threadId={threadId}
+          onTranscript={(t) => sendMessage(t)}
+          onAnsweringChange={setVoiceAnswering}
+        />
         <div className="flex gap-2">
           <input
             value={input}
@@ -354,12 +390,12 @@ export default function ChatUI({ selectedEpisode, episodes, threadId, onThreadUp
                 ? `Ask about "${selectedEpisode.filename}"…`
                 : "Type a question…"
             }
-            disabled={loading}
+            disabled={loading || voiceAnswering}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500"
           />
           <button
             onClick={() => sendMessage(input)}
-            disabled={loading}
+            disabled={loading || voiceAnswering}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 rounded-xl text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             Send

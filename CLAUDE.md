@@ -161,6 +161,7 @@ Copy `.env.example` → `.env` (never commit `.env`).
 | `ALLOWED_ORIGINS` | CORS (Etap 13) — comma-separated frontend origins, default `http://localhost:3000` |
 | `RATE_LIMIT_ENABLED` | Rate limiting (Etap 13) — `"false"` disables it (tests default it off); default `true` |
 | `API_KEY` | Optional `X-API-Key` gate on `/ingest/*` (Etap 13) — blank disables the gate; `frontend/middleware.ts` injects it server-side when set |
+| `DEEPGRAM_API_KEY` | Streaming voice duplex (Etap 15) — optional, `/voice/stream` falls back to `/voice/stt` without it |
 
 ## Known gotchas
 
