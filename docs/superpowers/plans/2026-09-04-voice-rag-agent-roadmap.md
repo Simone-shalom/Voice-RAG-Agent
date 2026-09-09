@@ -202,6 +202,57 @@ Bramka przed przejściem do kolejnego etapu: testy zielone, code review bez otwa
 
 ---
 
+## Etap 15 — Streaming voice: WebSocket duplex, barge-in, zmierzona latencja
+
+> Dodane po Etapie 14 (produkcyjny deploy) jako rozszerzenie roadmapy — domyka lukę, która jest bezpośrednim powodem istnienia tego projektu wg sekcji `Kontekst i uzasadnienie`: "Voice AI Engineer, który rozumie latencję konwersacji, VAD, streaming STT". Zweryfikowane researchem konkurencji (Vapi, Retell AI, Bland AI) w trakcie brainstormingu tego etapu: latencja end-to-end (~700-900ms) i obsługa barge-in to główny argument produktowy tych platform, nie dodatek. Domyka też DoD Etapu 4, które nigdy nie zostało w pełni spełnione (zmierzony czas do pierwszego dźwięku nigdy nie trafił do `DECISIONS.md` z liczbami).
+
+**Cel:** rozmowa głosowa z agentem działa jak duplex, nie jak walkie-talkie — mówisz, agent może cię przerwać albo ty jego, i wiadomo dokładnie ile to trwa.
+
+**Kontekst (stan przed etapem):** obecny flow to `AudioRecorder.tsx` (nagrywanie z energy-based VAD auto-stop) → cały blob → `POST /voice/stt` (Whisper, batch, jeden strzał) → `sendMessage()` → `POST /agent/chat/stream` (SSE: tokeny tekstu + audio per zdanie z `SentenceChunker`) → sekwencyjne odtwarzanie w `AudioContext`. To jest streaming *odpowiedzi*, ale nie *rozmowy* — mikrofon nie słucha podczas odtwarzania, nie ma przerywania, nie ma pomiaru latencji nigdzie w kodzie.
+
+**Zakres:**
+- Nowy provider: **Deepgram streaming STT** (`DEEPGRAM_API_KEY`) — prawdziwe interim transcripts słowo-po-słowie, nie batch. Whisper zostaje bez zmian dla ingestu (word-level timestamps do chunkingu już działają dobrze, nie ma powodu ruszać).
+- Backend: nowy endpoint `WS /voice/stream` (`backend/app/voice/stream_ws.py`) — klient streamuje audio ciągle (nie jeden blob), backend przekazuje do Deepgram, na sygnale końca wypowiedzi (Deepgram endpointing) odpala istniejący graf LangGraph i strumieniuje odpowiedź (tekst + TTS per zdanie, reużywając `SentenceChunker` i `voice/tts.py`) z powrotem przez to samo WS.
+- Cienki wrapper `backend/app/voice/deepgram_client.py` do streaming API Deepgrama (websockets/httpx, wzorem istniejących lazy-client patternów z `embedder.py`/`reranker.py`).
+- **Barge-in:** mikrofon zostaje aktywny podczas odtwarzania TTS. Gdy Deepgram zgłosi nową mowę w trakcie playbacku, klient natychmiast czyści kolejkę `AudioContext` i wysyła sygnał anulowania przez WS; backend najlepszym wysiłkiem przerywa zadania TTS w locie (bez gwarancji idealnej synchronizacji — porzucony chunk audio po stronie klienta wystarczy).
+- **Pomiar latencji:** klient znakuje czasem koniec wypowiedzi użytkownika i moment pierwszego bajtu audio odpowiedzi; różnica pokazywana jako mały badge przy odpowiedzi ("⚡ 640ms"); logowana strukturalnie po stronie backendu, żeby `DECISIONS.md` dostał realne liczby p50/p95, nie deklarację celu.
+- **Fallback:** gdy Deepgram niedostępny/błąd — automatyczny powrót do istniejącej ścieżki `/voice/stt` + `/agent/chat/stream` (obecne zachowanie zostaje jako degradacja, nie znika).
+- Frontend: nowy `frontend/components/VoiceStream.tsx` (zastępuje ścieżkę nagrywania w `AudioRecorder.tsx` dla trybu duplex, stary komponent zostaje jako fallback UI) + `frontend/lib/voiceWebSocket.ts` (reconnect z backoff).
+
+**Nie-cele (poza zakresem tego etapu):** telefonia (Twilio/SIP), przełączanie języka głosu w locie, wake-word detection, zmiana STT dla ingestu.
+
+**Definition of Done:** end-to-end demo w przeglądarce pokazuje (1) odpowiedź agenta przerwaną w połowie zdania przez nową wypowiedź użytkownika, ze słyszalnym, natychmiastowym urwaniem playbacku; (2) badge z realnym czasem do pierwszego dźwięku przy każdej odpowiedzi; (3) symulowana awaria Deepgrama (zły klucz) skutkuje płynnym powrotem do starej ścieżki `/voice/stt`, nie błędem w UI; (4) `DECISIONS.md` ma wpis z realnymi liczbami p50/p95 latencji zmierzonymi na kilkunastu próbkach, nie deklaracją "powinno być <3s".
+
+**Pułapka:** ten sam typ buga co już raz uderzył w tym projekcie (Etap 15 wcześniejszy, streaming SSE) — kształt danych ze streamingowego API bywa inny niż się wydaje z dokumentacji (por. `_extract_text` dla Anthropica, gdzie `content` okazał się listą bloków, nie stringiem). Zweryfikować realny kształt eventów z Deepgram WS na żywo, nie zakładać ze specyfikacji, i pokryć to testem regresyjnym analogicznym do `test_ignores_tool_use_blocks_interleaved_with_text`. Kolejność operacji (zapis/anulowanie vs. TTS) też już raz ugryzła (historia czatu zapisywana po TTS zamiast przed) — pilnować kolejności: potwierdzenie że tekst dotarł do klienta ma priorytet nad domykaniem audio.
+
+**Do CLAUDE.md:** nowy endpoint WS i jego kontrakt eventów, `DEEPGRAM_API_KEY` w tabeli zmiennych środowiskowych, jak działa fallback, gdzie szukać logów latencji.
+
+---
+
+## Etap 16 — Diaryzacja mówców + auto-summary/chapters per odcinek
+
+> Domyka realną lukę featerową wobec najlepszych narzędzi w niszy podcast-AI (Snipd, NotebookLM) zidentyfikowaną researchem konkurencji przy brainstormingu tego etapu, zostając w temacie audio ML zamiast uciekać w generyczny product feature. Celowo zsekwencjonowane po Etapie 15, bo reużywa tego samego konta Deepgram (diaryzacja to `diarize=true` w ich prerecorded API) — jeden nowy provider obsługuje oba etapy, nie dwa.
+
+**Cel:** cytowanie mówi "Patrick O'Neill powiedział..." zamiast anonimowego fragmentu tekstu, a odcinek ma streszczenie i spis rozdziałów zanim ktokolwiek zada pierwsze pytanie.
+
+**Zakres:**
+- Baza: nowa kolumna `Chunk.speaker_label` (nullable String), `Episode.summary` (nullable Text), `Episode.chapters` (nullable JSON — ten sam wzorzec co już istniejące `ChatMessage.sources`, bez nowej tabeli na start).
+- `backend/app/ingest/diarizer.py` (nowy): wywołanie Deepgram prerecorded API z `diarize=true` na tym samym pliku audio co transkrypcja; mapowanie segmentów mówców na chunki przez nakładanie się przedziałów czasowych (`[start_ts, end_ts]` chunku → mówca o największym pokryciu).
+- `backend/app/ingest/summarizer.py` (nowy): jedno wywołanie Claude Haiku (ten sam model co LLM-as-judge w evalu) nad zchunkowanym transkryptem, structured output produkujący: streszczenie (2-4 zdania), chapter markers (`[{start_ts, title}]`), best-effort mapowanie Speaker N → prawdziwe imię jeśli pada w transkrypcie (np. "jestem Gary Jordan, wasz gospodarz") — w tym samym wywołaniu, nie osobnym.
+- Integracja w `ingest_audio()`/`ingest_from_url()`/`ingest_from_rss()`: diaryzacja + summarization uruchamiane synchronicznie po chunkingu i embeddingu, przed zwróceniem odpowiedzi ingestu (ingest już dziś bywa wieloczynnościowy — UI ma copy "to może potrwać kilka minut").
+- API: `GET /episodes/{id}` (i `EpisodeResponse` gdzie relevantne) rozszerzone o `summary`, `chapters`, `chunks[].speaker_label`.
+- Frontend: `SourcePlayer.tsx` prefiksuje cytat etykietą mówcy; widok skupionego odcinka w sidebarze dostaje sekcję streszczenia i klikalny spis rozdziałów (jump do timestampu, analogicznie do istniejących source-jump linków).
+
+**Nie-cele:** rozpoznawanie tego samego głosu między różnymi odcinkami (voice fingerprinting), ręczna edycja etykiet mówców przez użytkownika.
+
+**Definition of Done:** zaingestowany odcinek z co najmniej dwoma mówcami pokazuje w UI poprawnie rozdzielone etykiety przy cytatach (zweryfikowane ręcznie ze słuchem — odsłuchaj fragment, sprawdź czy etykieta się zgadza); strona odcinka pokazuje streszczenie i klikalne rozdziały, kliknięcie skacze do właściwego miejsca; symulowana awaria diaryzacji/summaryzacji (zły klucz/timeout) kończy się odcinkiem z `speaker_label`/`summary` pustym, ale w pełni przeszukiwalnym — ingest się nie wywala.
+
+**Pułapka:** mapowanie mówca→chunk przez nakładanie przedziałów czasowych może dawać niejednoznaczne wyniki na granicach wypowiedzi (dwóch mówców nakładających się, przerywających sobie) — potrzebny jawny próg (np. mówca musi pokrywać >50% długości chunku, inaczej `speaker_label = NULL` zamiast zgadywać). Structured output z LLM dla chapters/summary bywa niestabilny formatem — wymusić schemat (function calling / JSON mode), nie parsować wolnego tekstu regexem.
+
+**Do CLAUDE.md:** nowe kolumny w `Chunk`/`Episode`, jak działa mapowanie mówca→chunk, kontrakt structured output summaryzatora, gdzie w UI pojawia się streszczenie/rozdziały.
+
+---
+
 ## Materiał na rozmowę kwalifikacyjną (zbierany po drodze, nie osobny etap)
 
 Zbieraj to na bieżąco w `DECISIONS.md`, nie odtwarzaj z pamięci przed rozmową:
