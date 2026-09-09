@@ -8,8 +8,10 @@ import httpx
 from sqlalchemy.orm import Session
 
 from .chunker import chunk_segments
+from .diarizer import assign_speaker_labels, diarize_audio
 from .embedder import embed_texts
 from .rss import parse_feed
+from .summarizer import summarize_episode
 from .transcriber import transcribe
 from ..core.url_safety import assert_safe_url
 from ..db.models import Chunk, Episode
@@ -25,10 +27,45 @@ def ingest_audio(audio_path: Path, filename: str, source_url: str | None, db: Se
     texts = [c["text"] for c in chunk_dicts]
     embeddings = embed_texts(texts)
 
-    episode = Episode(id=uuid.uuid4(), filename=filename, source_url=source_url)
+    speaker_labels: list[str | None] = [None] * len(chunk_dicts)
+    try:
+        words = diarize_audio(audio_path)
+        speaker_labels = assign_speaker_labels(chunk_dicts, words)
+    except Exception:
+        # Diarization is a nice-to-have, never a reason to fail an ingest —
+        # the episode must stay fully searchable even if Deepgram is down.
+        logger.exception("diarization failed — continuing without speaker labels")
+
+    # Merge the diarizer's generic "Speaker N" labels onto the chunks BEFORE
+    # summarizing: summarize_episode's speaker_names mapping is only grounded
+    # in reality if Claude can actually see which chunk belongs to which
+    # speaker index. Without this, any "Speaker N" -> real-name mapping it
+    # returns is a guess about an index it was never shown, and applying that
+    # guess to Chunk.speaker_label would mislabel real speech with the wrong
+    # person's name — worse than the honest generic label it replaces. If
+    # diarization failed above, every label here is just None, which
+    # summarize_episode treats as "unlabeled" (no prefix), not an error.
+    for chunk_dict, label in zip(chunk_dicts, speaker_labels):
+        chunk_dict["speaker_label"] = label
+
+    summary: str | None = None
+    chapters: list[dict] | None = None
+    try:
+        summary_result = summarize_episode(chunk_dicts)
+        summary = summary_result["summary"] or None
+        chapters = summary_result["chapters"] or None
+        speaker_names = summary_result["speaker_names"]
+        if speaker_names:
+            speaker_labels = [speaker_names.get(label, label) if label else None for label in speaker_labels]
+    except Exception:
+        # Same rationale as diarization above — summarization must never
+        # abort an otherwise-successful ingest.
+        logger.exception("summarization failed — continuing without summary/chapters")
+
+    episode = Episode(id=uuid.uuid4(), filename=filename, source_url=source_url, summary=summary, chapters=chapters)
     db.add(episode)
 
-    for chunk_dict, embedding in zip(chunk_dicts, embeddings):
+    for chunk_dict, embedding, speaker_label in zip(chunk_dicts, embeddings, speaker_labels):
         db.add(
             Chunk(
                 episode_id=episode.id,
@@ -36,6 +73,7 @@ def ingest_audio(audio_path: Path, filename: str, source_url: str | None, db: Se
                 end_ts=chunk_dict["end_ts"],
                 text=chunk_dict["text"],
                 embedding=embedding,
+                speaker_label=speaker_label,
             )
         )
 

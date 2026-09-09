@@ -16,6 +16,8 @@ class Episode(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     filename = Column(String, nullable=False)
     source_url = Column(String, nullable=True)
+    summary = Column(Text, nullable=True)
+    chapters = Column(JSON, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     chunks = relationship("Chunk", back_populates="episode", lazy="select")
 
@@ -29,6 +31,7 @@ class Chunk(Base):
     end_ts = Column(Float, nullable=False)
     text = Column(Text, nullable=False)
     embedding = Column(Vector(1536), nullable=True)
+    speaker_label = Column(String, nullable=True)
     episode = relationship("Episode", back_populates="chunks")
 
 

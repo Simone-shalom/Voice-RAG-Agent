@@ -10,7 +10,7 @@ from .rrf import reciprocal_rank_fusion
 def semantic_search(query: str, limit: int, db: Session) -> list[dict]:
     """
     Embed the query and find the nearest chunks by cosine similarity.
-    Returns list of {chunk_id, episode_id, start_ts, end_ts, text, similarity}.
+    Returns list of {chunk_id, episode_id, start_ts, end_ts, text, similarity, speaker_label}.
     """
     embedding = embed_texts([query])[0]
     embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
@@ -18,7 +18,7 @@ def semantic_search(query: str, limit: int, db: Session) -> list[dict]:
     rows = db.execute(
         text(
             """
-            SELECT c.id, c.episode_id, c.start_ts, c.end_ts, c.text,
+            SELECT c.id, c.episode_id, c.start_ts, c.end_ts, c.text, c.speaker_label,
                    1 - (c.embedding <=> CAST(:emb AS vector)) AS similarity
             FROM chunks c
             WHERE c.embedding IS NOT NULL
@@ -37,6 +37,7 @@ def semantic_search(query: str, limit: int, db: Session) -> list[dict]:
             "end_ts": r.end_ts,
             "text": r.text,
             "similarity": float(r.similarity),
+            "speaker_label": r.speaker_label,
         }
         for r in rows
     ]
@@ -46,7 +47,7 @@ def hybrid_search(query: str, limit: int, db: Session) -> list[dict]:
     """
     Fuse semantic and BM25 results via Reciprocal Rank Fusion.
     Fetches 2× limit from each sub-searcher for fusion headroom.
-    Returns list of {chunk_id, episode_id, start_ts, end_ts, text, similarity}
+    Returns list of {chunk_id, episode_id, start_ts, end_ts, text, speaker_label, similarity}
     where similarity is the RRF score.
     """
     fetch = limit * 2
@@ -62,6 +63,7 @@ def hybrid_search(query: str, limit: int, db: Session) -> list[dict]:
 def hybrid_rerank_search(query: str, limit: int, db: Session) -> list[dict]:
     """
     Hybrid RRF search followed by Cohere reranking.
+    Returns the same fields as hybrid_search, reordered/filtered by relevance.
     Raises RuntimeError if COHERE_API_KEY is not set.
     """
     candidates = hybrid_search(query, limit=limit * 2, db=db)

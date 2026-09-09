@@ -27,6 +27,8 @@ class EpisodeResponse(BaseModel):
     id: str
     filename: str
     chunk_count: int
+    summary: str | None = None
+    chapters: list[dict] | None = None
 
 
 class IngestRSSRequest(BaseModel):
@@ -67,7 +69,10 @@ def upload_audio(request: Request, file: UploadFile = File(...), db: Session = D
     finally:
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
-    return EpisodeResponse(id=str(episode.id), filename=episode.filename, chunk_count=len(episode.chunks))
+    return EpisodeResponse(
+        id=str(episode.id), filename=episode.filename, chunk_count=len(episode.chunks),
+        summary=episode.summary, chapters=episode.chapters,
+    )
 
 
 @router.post("/url", response_model=EpisodeResponse)
@@ -82,7 +87,10 @@ def ingest_url(request: Request, body: IngestURLRequest, db: Session = Depends(g
     except Exception:
         logger.exception("ingest from URL failed")
         raise HTTPException(status_code=500, detail="Internal error — please try again later.")
-    return EpisodeResponse(id=str(episode.id), filename=episode.filename, chunk_count=len(episode.chunks))
+    return EpisodeResponse(
+        id=str(episode.id), filename=episode.filename, chunk_count=len(episode.chunks),
+        summary=episode.summary, chapters=episode.chapters,
+    )
 
 
 @router.post("/rss", response_model=RSSIngestResponse)
@@ -97,7 +105,10 @@ def ingest_rss(request: Request, body: IngestRSSRequest, db: Session = Depends(g
         raise HTTPException(status_code=500, detail="Internal error — please try again later.")
     return RSSIngestResponse(
         episodes=[
-            EpisodeResponse(id=str(ep.id), filename=ep.filename, chunk_count=len(ep.chunks))
+            EpisodeResponse(
+                id=str(ep.id), filename=ep.filename, chunk_count=len(ep.chunks),
+                summary=ep.summary, chapters=ep.chapters,
+            )
             for ep in result["episodes"]
         ],
         errors=[RSSErrorItem(**err) for err in result["errors"]],

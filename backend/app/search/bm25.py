@@ -5,13 +5,13 @@ from sqlalchemy.orm import Session
 def bm25_search(query: str, limit: int, db: Session) -> list[dict]:
     """
     Full-text search using PostgreSQL tsvector/ts_rank.
-    Returns list of {chunk_id, episode_id, start_ts, end_ts, text, similarity}
+    Returns list of {chunk_id, episode_id, start_ts, end_ts, text, similarity, speaker_label}
     where similarity is the ts_rank score (higher = more relevant).
     """
     rows = db.execute(
         text(
             """
-            SELECT c.id, c.episode_id, c.start_ts, c.end_ts, c.text,
+            SELECT c.id, c.episode_id, c.start_ts, c.end_ts, c.text, c.speaker_label,
                    ts_rank(c.text_search, query) AS bm25_score
             FROM chunks c,
                  plainto_tsquery('english', :query_text) query
@@ -31,6 +31,7 @@ def bm25_search(query: str, limit: int, db: Session) -> list[dict]:
             "end_ts": r.end_ts,
             "text": r.text,
             "similarity": float(r.bm25_score),
+            "speaker_label": r.speaker_label,
         }
         for r in rows
     ]

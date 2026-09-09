@@ -70,4 +70,32 @@ def init_db(engine_):
                 "ON chunks USING GIN(text_search)"
             )
         )
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'chunks' AND column_name = 'speaker_label'
+                  ) THEN
+                    ALTER TABLE chunks ADD COLUMN speaker_label VARCHAR;
+                  END IF;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'episodes' AND column_name = 'summary'
+                  ) THEN
+                    ALTER TABLE episodes ADD COLUMN summary TEXT;
+                  END IF;
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'episodes' AND column_name = 'chapters'
+                  ) THEN
+                    ALTER TABLE episodes ADD COLUMN chapters JSON;
+                  END IF;
+                END
+                $$
+                """
+            )
+        )
         conn.commit()

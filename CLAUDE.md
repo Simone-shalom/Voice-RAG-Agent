@@ -78,6 +78,16 @@ id UUID, episode_id UUID, start_ts FLOAT, end_ts FLOAT, text TEXT, embedding VEC
 
 `start_ts`/`end_ts` are seconds from audio start. All timestamp citations depend on this. Never break this invariant.
 
+## Speaker diarization & summarization (Etap 16)
+
+Chunks gain an optional `speaker_label` column (nullable, idempotent `ALTER TABLE` in `init_db()`). Episodes gain `summary` (text, nullable) and `chapters` (JSON array, nullable).
+
+**Speaker assignment:** each chunk is assigned to a speaker if a single diarized speaker occupies >50% of the chunk's duration; below that threshold, `speaker_label` is `NULL` (never guessed). The algorithm (in `app.ingest.diarizer.assign_speaker_labels`) matches speakers by time-overlap.
+
+**Summarization:** one Claude Haiku tool-use call produces `{summary, chapters, speaker_names}` per episode (idempotent in `init_db()`). The transcript sent to the model prefixes each chunk with its diarized speaker label where present (`"Speaker 1: ..."` or `"Alice: ..."` if the transcript explicitly states a name), so `speaker_names` is grounded in labels the model saw, never guessed — best-effort remapping of `"Speaker N"` to real names only when the transcript actually states them.
+
+**UI:** `SourcePlayer.tsx` prefixes citations with the speaker label (e.g. `Speaker 1` or `Alice`); the focused-episode panel in `FileUploader.tsx` shows the episode summary and a clickable chapter list that jumps the player to each chapter's timestamp.
+
 ## Search modes
 
 `GET /search?q=...&mode=semantic|bm25|hybrid|hybrid+rerank&limit=N`
@@ -161,7 +171,7 @@ Copy `.env.example` → `.env` (never commit `.env`).
 | `ALLOWED_ORIGINS` | CORS (Etap 13) — comma-separated frontend origins, default `http://localhost:3000` |
 | `RATE_LIMIT_ENABLED` | Rate limiting (Etap 13) — `"false"` disables it (tests default it off); default `true` |
 | `API_KEY` | Optional `X-API-Key` gate on `/ingest/*` (Etap 13) — blank disables the gate; `frontend/middleware.ts` injects it server-side when set |
-| `DEEPGRAM_API_KEY` | Streaming voice duplex (Etap 15) — optional, `/voice/stream` falls back to `/voice/stt` without it |
+| `DEEPGRAM_API_KEY` | Streaming voice duplex (Etap 15) and speaker diarization (Etap 16) — optional, `/voice/stream` falls back to `/voice/stt` and diarization is skipped without it |
 
 ## Known gotchas
 
@@ -176,6 +186,7 @@ Copy `.env.example` → `.env` (never commit `.env`).
 - **`:param::type` in raw SQL**: SQLAlchemy's `text()` bind-param regex has a negative lookahead on a trailing `:`, so `:emb::vector` is never recognized as a bind param (collides with Postgres's `::` cast) — it's silently left as literal text and the param is dropped before reaching the driver. Use `CAST(:param AS type)` instead. Same root cause as above: mocked-DB tests never compile the SQL against a real dialect, so this also shipped broken once.
 - **`MemorySaver` must be a module-level singleton**: `build_graph()` is called fresh on every `/agent/chat` and `/agent/chat/stream` request. A `MemorySaver()` instantiated *inside* `build_graph()` gives every request an empty checkpoint store — `thread_id` becomes inert and the agent has zero memory of earlier turns, even within one browser session (this shipped broken once too — no test called `build_graph()` twice with the same `thread_id` to catch it). The checkpointer (`app.agent.graph._CHECKPOINTER`) must be created once at module scope and reused across calls.
 - **Chat history persistence must happen before TTS, not after**: in `stream_agent_response`, save the assistant message (`app.agent.history.save_message`) right after the token loop ends — *before* the TTS `await` loop. A TTS failure is fatal-by-design (aborts before `"done"`), so persistence placed after it silently never runs whenever ElevenLabs is unavailable (this shipped broken once with `ELEVENLABS_API_KEY` unset — every streamed answer's history entry was lost).
+- **`GROUP BY`/`DISTINCT`/`UNION` on a `json` column**: PostgreSQL's `json` type has no equality operator, so it can't appear in `GROUP BY` (or `DISTINCT`, or either side of a `UNION`) — the query fails at plan time with `could not identify an equality operator for type json`, regardless of the actual data. If you need to group/dedupe/union rows and one of the selected columns is a `JSON` SQLAlchemy column, either group by the primary key alone (functional dependency covers the other columns from the same table) or use `JSONB` instead (which does support equality). Same root cause as the other gotchas above: mocked-DB tests never compile the SQL against a real Postgres planner, so this class of bug is invisible to the test suite — caught only by a real whole-branch review running the query against real PostgreSQL.
 
 ## Ingest commands
 

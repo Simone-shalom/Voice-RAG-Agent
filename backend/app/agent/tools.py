@@ -61,7 +61,7 @@ def make_tools(db: Session, mode: str = "hybrid", sources_sink: list[dict] | Non
         rows = db.execute(
             text(
                 """
-                SELECT id, episode_id, start_ts, end_ts, text
+                SELECT id, episode_id, start_ts, end_ts, text, speaker_label
                 FROM chunks
                 WHERE episode_id = :ep_id
                   AND start_ts >= :start AND end_ts <= :end
@@ -83,6 +83,7 @@ def make_tools(db: Session, mode: str = "hybrid", sources_sink: list[dict] | Non
                 "start_ts": r.start_ts,
                 "end_ts": r.end_ts,
                 "text": r.text,
+                "speaker_label": r.speaker_label,
             })
         return "\n".join(f"[{r.start_ts:.1f}s–{r.end_ts:.1f}s] {r.text}" for r in rows)
 

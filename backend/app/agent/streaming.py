@@ -67,7 +67,7 @@ async def stream_agent_response(
     Event types: token, audio (b64+text), sources, done, cancelled, error.
       {"type": "token",  "text": "..."}                          — each streamed token
       {"type": "audio",  "data": "<b64>", "text": "..."}          — synthesised sentence chunk, in playback order
-      {"type": "sources", "data": [{"episode_id","start_ts","end_ts","text"}, ...]}
+      {"type": "sources", "data": [{"episode_id","start_ts","end_ts","text","speaker_label"}, ...]}
                                                                    — deduplicated chunks the agent actually
                                                                      retrieved, sent once before "done";
                                                                      omitted entirely if nothing was retrieved
@@ -141,6 +141,7 @@ async def stream_agent_response(
                     "start_ts": src.get("start_ts"),
                     "end_ts": src.get("end_ts"),
                     "text": src.get("text"),
+                    "speaker_label": src.get("speaker_label"),
                 })
                 if len(deduped) >= MAX_SOURCES:
                     break

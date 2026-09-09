@@ -8,6 +8,14 @@ export interface Episode {
   filename: string;
   chunk_count: number;
   source_url?: string | null;
+  summary?: string | null;
+  chapters?: { start_ts: number; title: string }[] | null;
+}
+
+function formatChapterTime(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 interface IngestResult {
@@ -37,6 +45,7 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode, episo
   const [urlInput, setUrlInput] = useState("");
   const [rssUrl, setRssUrl] = useState("");
   const [rssLimit, setRssLimit] = useState(5);
+  const [chapterJumpTs, setChapterJumpTs] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function uploadFile(file: File) {
@@ -321,36 +330,74 @@ export default function FileUploader({ selectedEpisodeId, onSelectEpisode, episo
           episodes.map((ep) => {
             const selected = selectedEpisodeId === ep.id;
             return (
-              <button
-                key={ep.id}
-                onClick={() => toggleEpisode(ep)}
-                aria-pressed={selected}
-                title={selected ? "Click to deselect" : "Click to focus queries on this episode"}
-                className={`text-left w-full rounded-lg border px-3 py-2 transition-colors group ${
-                  selected
-                    ? "bg-indigo-950/60 border-indigo-600/70"
-                    : "bg-gray-900 border-gray-800 hover:border-gray-600"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-1">
-                  <p
-                    className={`text-xs font-medium truncate ${
-                      selected ? "text-indigo-200" : "text-gray-300"
-                    }`}
-                    title={ep.filename}
-                  >
-                    {ep.filename}
+              <div key={ep.id}>
+                <button
+                  onClick={() => toggleEpisode(ep)}
+                  aria-pressed={selected}
+                  title={selected ? "Click to deselect" : "Click to focus queries on this episode"}
+                  className={`text-left w-full rounded-lg border px-3 py-2 transition-colors group ${
+                    selected
+                      ? "bg-indigo-950/60 border-indigo-600/70"
+                      : "bg-gray-900 border-gray-800 hover:border-gray-600"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <p
+                      className={`text-xs font-medium truncate ${
+                        selected ? "text-indigo-200" : "text-gray-300"
+                      }`}
+                      title={ep.filename}
+                    >
+                      {ep.filename}
+                    </p>
+                    {selected && (
+                      <span className="shrink-0 text-indigo-400 text-[10px] mt-0.5">
+                        <span aria-hidden="true">✓</span> focused
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-[10px] mt-0.5 ${selected ? "text-indigo-400/70" : "text-gray-600"}`}>
+                    {ep.chunk_count} chunks
                   </p>
-                  {selected && (
-                    <span className="shrink-0 text-indigo-400 text-[10px] mt-0.5">
-                      <span aria-hidden="true">✓</span> focused
-                    </span>
-                  )}
-                </div>
-                <p className={`text-[10px] mt-0.5 ${selected ? "text-indigo-400/70" : "text-gray-600"}`}>
-                  {ep.chunk_count} chunks
-                </p>
-              </button>
+                </button>
+                {selected && (ep.summary || ep.chapters?.length || ep.source_url) && (
+                  <div className="mt-1 mb-2 px-3 py-2 bg-gray-950/60 border border-indigo-900/40 rounded-lg text-xs space-y-2">
+                    {ep.summary && <p className="text-gray-300">{ep.summary}</p>}
+                    {ep.chapters && ep.chapters.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500">Chapters</p>
+                        {ep.chapters.map((ch, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setChapterJumpTs(ch.start_ts)}
+                            className="flex items-center gap-2 w-full text-left hover:bg-gray-800/60 rounded px-1 py-0.5"
+                          >
+                            <span className="text-indigo-400 font-mono text-[10px] shrink-0">
+                              {formatChapterTime(ch.start_ts)}
+                            </span>
+                            <span className="text-gray-300 truncate">{ch.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {ep.source_url && (
+                      <audio
+                        data-testid="episode-audio-player"
+                        controls
+                        preload="none"
+                        src={
+                          chapterJumpTs !== null
+                            ? `${ep.source_url.split("#")[0]}#t=${chapterJumpTs}`
+                            : ep.source_url
+                        }
+                        className="w-full h-8"
+                      >
+                        Your browser does not support audio playback.
+                      </audio>
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })
         )}

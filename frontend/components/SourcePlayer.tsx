@@ -7,6 +7,7 @@ interface Source {
   start_ts: number;
   end_ts: number;
   text: string;
+  speaker_label?: string | null;
 }
 
 interface Props {
@@ -46,7 +47,12 @@ export default function SourcePlayer({ sources, episodeById = {} }: Props) {
                 {label}
               </span>
             </div>
-            <p className="text-gray-300 line-clamp-3">{src.text}</p>
+            <p className="text-gray-300 line-clamp-3">
+              {src.speaker_label && (
+                <span className="text-indigo-300 font-semibold">{src.speaker_label}: </span>
+              )}
+              {src.text}
+            </p>
             {audioSrc ? (
               <audio controls preload="none" src={audioSrc} className="mt-2 w-full h-8">
                 Your browser does not support audio playback.

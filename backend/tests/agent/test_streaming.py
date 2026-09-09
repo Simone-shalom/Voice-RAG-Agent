@@ -190,7 +190,7 @@ async def test_yields_sources_event_from_sink():
 
     sources_events = [i for i in items if i["type"] == "sources"]
     assert len(sources_events) == 1
-    assert sources_events[0]["data"] == [{"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi"}]
+    assert sources_events[0]["data"] == [{"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi", "speaker_label": None}]
     # sources event must come before done
     assert items[-1]["type"] == "done"
     assert items[-2]["type"] == "sources"
@@ -290,7 +290,7 @@ async def test_persists_assistant_message_with_sources():
     assistant_call = mock_save.call_args_list[-1]
     assert assistant_call[0][2] == "assistant"
     assert assistant_call[0][3] == "Answer text."
-    assert assistant_call[0][4] == [{"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi"}]
+    assert assistant_call[0][4] == [{"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi", "speaker_label": None}]
 
 
 @pytest.mark.asyncio
@@ -394,7 +394,7 @@ async def test_sources_event_strips_extra_fields_and_caps_at_max():
         items = await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
 
     sources_event = next(i for i in items if i["type"] == "sources")
-    assert sources_event["data"][0] == {"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi"}
+    assert sources_event["data"][0] == {"episode_id": "ep1", "start_ts": 1.0, "end_ts": 2.0, "text": "hi", "speaker_label": None}
     assert "chunk_id" not in sources_event["data"][0]
     assert "similarity" not in sources_event["data"][0]
     assert len(sources_event["data"]) == 8
@@ -450,3 +450,52 @@ async def test_no_cancel_event_behaves_exactly_as_before():
 
     assert items[-1]["type"] == "done"
     assert not any(i["type"] == "cancelled" for i in items)
+
+
+@pytest.mark.asyncio
+async def test_sources_event_includes_speaker_label():
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("Answer.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    def fake_build_graph(db, llm, mode="hybrid", sources_sink=None):
+        if sources_sink is not None:
+            sources_sink.append({
+                "episode_id": "e1", "start_ts": 1.0, "end_ts": 5.0,
+                "text": "hello", "speaker_label": "Speaker 0", "chunk_id": "c1", "similarity": 0.9,
+            })
+        return mock_graph
+
+    with patch("app.agent.streaming.build_graph", side_effect=fake_build_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+        items = await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
+
+    sources_event = next(i for i in items if i["type"] == "sources")
+    assert sources_event["data"][0]["speaker_label"] == "Speaker 0"
+
+
+@pytest.mark.asyncio
+async def test_sources_event_speaker_label_none_when_absent():
+    async def fake_stream(*args, **kwargs):
+        yield _make_token_event("Answer.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = fake_stream
+
+    def fake_build_graph(db, llm, mode="hybrid", sources_sink=None):
+        if sources_sink is not None:
+            sources_sink.append({"episode_id": "e1", "start_ts": 1.0, "end_ts": 5.0, "text": "hello"})
+        return mock_graph
+
+    with patch("app.agent.streaming.build_graph", side_effect=fake_build_graph), \
+         patch("app.agent.streaming.synthesise", return_value=b"bytes"), \
+         patch("app.agent.streaming.ChatAnthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+        items = await _collect(stream_agent_response("hi", "t1", db=MagicMock()))
+
+    sources_event = next(i for i in items if i["type"] == "sources")
+    assert sources_event["data"][0]["speaker_label"] is None

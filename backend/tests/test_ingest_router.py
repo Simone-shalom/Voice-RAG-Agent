@@ -2,11 +2,13 @@ from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 
-def make_mock_episode(chunk_count=2):
+def make_mock_episode(chunk_count=2, summary=None, chapters=None):
     ep = MagicMock()
     ep.id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
     ep.filename = "test.mp3"
     ep.chunks = [MagicMock()] * chunk_count
+    ep.summary = summary
+    ep.chapters = chapters
     return ep
 
 
@@ -82,6 +84,8 @@ def test_ingest_rss_returns_episodes_and_errors(client, mock_db):
     fake_episode.id = "11111111-1111-1111-1111-111111111111"
     fake_episode.filename = "ep1.mp3"
     fake_episode.chunks = [MagicMock()]
+    fake_episode.summary = None
+    fake_episode.chapters = None
 
     with patch(
         "app.ingest.router.ingest_from_rss",
@@ -214,6 +218,39 @@ def test_ingest_url_returns_400_on_httpx_error(client):
         response = client.post("/ingest/url", json={"url": "http://example.com/audio.mp3"})
     assert response.status_code == 400
     assert response.json()["detail"] == "could not fetch the URL"
+
+
+def test_upload_response_includes_summary_and_chapters(client):
+    mock_ep = make_mock_episode(
+        chunk_count=3,
+        summary="A short summary.",
+        chapters=[{"start_ts": 0.0, "title": "Intro"}],
+    )
+
+    with patch("app.ingest.router.ingest_audio", return_value=mock_ep):
+        response = client.post(
+            "/ingest/upload",
+            files={"file": ("test.mp3", BytesIO(b"ID3fake audio"), "audio/mpeg")},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"] == "A short summary."
+    assert body["chapters"] == [{"start_ts": 0.0, "title": "Intro"}]
+
+
+def test_upload_response_summary_and_chapters_default_to_null(client):
+    mock_ep = make_mock_episode(chunk_count=1)  # summary/chapters default to None
+
+    with patch("app.ingest.router.ingest_audio", return_value=mock_ep):
+        response = client.post(
+            "/ingest/upload",
+            files={"file": ("test.mp3", BytesIO(b"ID3fake audio"), "audio/mpeg")},
+        )
+
+    body = response.json()
+    assert body["summary"] is None
+    assert body["chapters"] is None
 
 
 def test_upload_returns_400_on_openai_api_error(client):

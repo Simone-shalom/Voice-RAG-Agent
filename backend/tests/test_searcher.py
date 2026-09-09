@@ -9,7 +9,7 @@ from sqlalchemy.dialects import postgresql
 from app.search.searcher import semantic_search, hybrid_search, hybrid_rerank_search
 
 
-def make_mock_row(chunk_id="c1", episode_id="e1", start_ts=1.0, end_ts=5.0, text="Hello", similarity=0.9):
+def make_mock_row(chunk_id="c1", episode_id="e1", start_ts=1.0, end_ts=5.0, text="Hello", similarity=0.9, speaker_label=None):
     row = MagicMock()
     row.id = chunk_id
     row.episode_id = episode_id
@@ -17,6 +17,7 @@ def make_mock_row(chunk_id="c1", episode_id="e1", start_ts=1.0, end_ts=5.0, text
     row.end_ts = end_ts
     row.text = text
     row.similarity = similarity
+    row.speaker_label = speaker_label
     return row
 
 
@@ -33,7 +34,17 @@ def test_semantic_search_returns_chunk_dicts():
     assert len(results) == 2
     assert results[0]["chunk_id"] == "c1"
     assert results[0]["similarity"] == 0.9
-    assert set(results[0].keys()) == {"chunk_id", "episode_id", "start_ts", "end_ts", "text", "similarity"}
+    assert set(results[0].keys()) == {"chunk_id", "episode_id", "start_ts", "end_ts", "text", "similarity", "speaker_label"}
+
+
+def test_semantic_search_returns_speaker_label_when_present():
+    db = MagicMock()
+    db.execute.return_value.fetchall.return_value = [make_mock_row(speaker_label="Speaker 0")]
+
+    with patch("app.search.searcher.embed_texts", return_value=[[0.1] * 1536]):
+        results = semantic_search("test query", limit=10, db=db)
+
+    assert results[0]["speaker_label"] == "Speaker 0"
 
 
 def test_semantic_search_passes_limit_to_query():

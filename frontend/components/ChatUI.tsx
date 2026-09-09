@@ -12,6 +12,7 @@ export interface Source {
   start_ts: number;
   end_ts: number;
   text: string;
+  speaker_label?: string | null;
 }
 
 export interface Message {

@@ -40,7 +40,8 @@ def test_search_transcripts_returns_string():
 def test_get_context_around_timestamp_returns_string():
     db = make_db()
     db.execute.return_value.fetchall.return_value = [
-        MagicMock(id="c1", episode_id="ep1", start_ts=4.0, end_ts=9.0, text="nearby chunk")
+        MagicMock(id="c1", episode_id="ep1", start_ts=4.0, end_ts=9.0, text="nearby chunk",
+                   speaker_label="Speaker 0")
     ]
     tools = make_tools(db)
     fn = next(t for t in tools if t.name == "get_context_around_timestamp")
@@ -120,14 +121,34 @@ def test_unrecognised_mode_falls_back_to_hybrid():
 def test_get_context_around_timestamp_appends_to_sources_sink():
     db = make_db()
     db.execute.return_value.fetchall.return_value = [
-        MagicMock(id="c1", episode_id="ep1", start_ts=4.0, end_ts=9.0, text="nearby chunk")
+        MagicMock(id="c1", episode_id="ep1", start_ts=4.0, end_ts=9.0, text="nearby chunk",
+                   speaker_label="Speaker 0")
     ]
     sink: list[dict] = []
     tools = make_tools(db, sources_sink=sink)
     fn = next(t for t in tools if t.name == "get_context_around_timestamp")
     fn.invoke({"episode_id": "ep1", "timestamp": 5.0, "window_seconds": 10.0})
 
-    assert sink == [{"episode_id": "ep1", "start_ts": 4.0, "end_ts": 9.0, "text": "nearby chunk"}]
+    assert sink == [{"episode_id": "ep1", "start_ts": 4.0, "end_ts": 9.0, "text": "nearby chunk",
+                      "speaker_label": "Speaker 0"}]
+
+
+def test_get_context_around_timestamp_includes_none_speaker_label_when_unlabeled():
+    """A chunk with no diarized speaker should still carry an explicit
+    speaker_label: None key in the sources_sink entry (not an omitted key),
+    so downstream dedup/rendering can rely on the key always being present."""
+    db = make_db()
+    db.execute.return_value.fetchall.return_value = [
+        MagicMock(id="c1", episode_id="ep1", start_ts=4.0, end_ts=9.0, text="nearby chunk",
+                   speaker_label=None)
+    ]
+    sink: list[dict] = []
+    tools = make_tools(db, sources_sink=sink)
+    fn = next(t for t in tools if t.name == "get_context_around_timestamp")
+    fn.invoke({"episode_id": "ep1", "timestamp": 5.0, "window_seconds": 10.0})
+
+    assert sink == [{"episode_id": "ep1", "start_ts": 4.0, "end_ts": 9.0, "text": "nearby chunk",
+                      "speaker_label": None}]
 
 
 def test_compare_across_episodes_appends_to_sources_sink():
